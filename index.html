@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Innovatsion taʼlim texnologiyalari va Psixologiya</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen">
+        <div class="login-box">
+            <div class="lock-icon"></div>
+            <h2>Xush kelibsiz!</h2>
+            <p>Testni boshlash uchun kirish ma'lumotlarini kiriting</p>
+            
+            <div class="input-group">
+                <input type="text" id="username" placeholder=" " autocomplete="off">
+                <label for="username">Login</label>
+            </div>
+            
+            <div class="input-group">
+                <input type="password" id="password" placeholder=" " autocomplete="off">
+                <label for="password">Parol</label>
+            </div>
+            
+            <button id="loginBtn">
+                <span id="btnText">Kirish</span>
+            </button>
+            
+            <div class="error-message" id="errorMessage">
+                ❌ Login yoki parol noto'g'ri!
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent">
+        <div id="timer" class="timer-fixed">00:00</div>
+
+        <div class="container">
+            <h1>Innovatsion taʼlim texnologiyalari va Psixologiya Testi  338 ta. [PRIP_N22]</h1>
+            
+            <div id="quiz-container"></div>
+
+            <div class="navigation-buttons">
+                <button id="nextBtn">Keyingi Savol</button>
+                <a href="dastur01.html" class="contact-btn">Biz bilan bog'lanish</a>
+</div>
+            </div>
+            
+                     
+            <div id="results" class="results-inline">
+                <span id="summaryResults">Urinish: 0, To'g'ri: 0, Foiz: 0%</span>
+            </div>
+            
+            <footer>
+                <p>&copy; 2025. Veb-sahifa muallifi: SHodlik (Otavaliyev_M). Barcha huquqlar himoyalangan.</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Modal Oyna (20 ta savol tugagach) -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-icon">🎯</div>
+            <h2 id="modalTitle">20 ta savoldan natija</h2>
+            <div class="modal-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="modalCorrect">0</div>
+                    <div class="stat-label">To'g'ri javoblar</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="modalWrong">0</div>
+                    <div class="stat-label">Noto'g'ri javoblar</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="modalPercent">0%</div>
+                    <div class="stat-label">Foiz</div>
+                </div>
+            </div>
+            <div id="modalVerdict" class="modal-verdict">
+                <!-- Natija bu yerga dinamik qo'shiladi -->
+            </div>
+            <button id="continueBtn" class="continue-btn">Davom etish</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
