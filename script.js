@@ -2,7 +2,7 @@
 const AUTH_KEY = 'inavatsilya_authenticated';
 const VALID_CREDENTIALS = {
     username: 'Inavatsiya2025',
-    password: 'Odina1221'
+    password: 'Odina12221'
 };
 
 // ===== TEST SAVOLLARI (400 TA) =====
@@ -488,7 +488,7 @@ const questionsData = [
     correctAnswer: "Inson va hayvonlarning psixikasi, psixik faoliyatining qonuniyatlari"
   },
   {
-    question: "Psixik hodisalar tarkibiga kiruvchi **shaxsning individual ruhiy xususiyatlari** qaysi qatorda ko‘rsatilgan?",
+    question: "Psixik hodisalar tarkibiga kiruvchi **shaxsning individual ruhiy xususiyatlari** qaysi qatorda koï¿½rsatilgan?",
     options: [
       "Sezgi, idrok, xotira, tafakkur",
       "Temperament, xarakter, qobiliyat",
@@ -501,11 +501,11 @@ const questionsData = [
     question: "**Diqqatning kontsentratsiyasi** nima?",
     options: [
       "Faqat joyni o'zgartirish",
-      "Insonning o‘z diqqatini ma’lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi",
+      "Insonning oï¿½z diqqatini maï¿½lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi",
       "Faqat eslab qolish tezligi",
       "Faqat yozish"
     ],
-    correctAnswer: "Insonning o‘z diqqatini ma’lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi"
+    correctAnswer: "Insonning oï¿½z diqqatini maï¿½lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi"
   },
   {
     question: "**Sezgi** qanday psixik jarayon?",
@@ -521,11 +521,11 @@ const questionsData = [
     question: "**Idrok** (Vospriyatiye) nima?",
     options: [
       "Faqat bir xususiyatni aks ettirish",
-      "Ob’ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish",
+      "Obï¿½ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish",
       "Faqat yozish",
       "Faqat xotira"
     ],
-    correctAnswer: "Ob’ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish"
+    correctAnswer: "Obï¿½ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish"
   },
   {
     question: "**Tafakkur**ning asosiy funksiyasi?",
@@ -651,11 +651,11 @@ const questionsData = [
     question: "**Iroda** (Volya) nima?",
     options: [
       "Faqat orzu",
-      "Shaxsning o‘z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati",
+      "Shaxsning oï¿½z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati",
       "Faqat tana kuchi",
       "Faqat temperament"
     ],
-    correctAnswer: "Shaxsning o‘z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati"
+    correctAnswer: "Shaxsning oï¿½z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati"
   },
   {
     question: "Irodaviy harakatning asosiy bosqichlari?",
@@ -668,14 +668,14 @@ const questionsData = [
     correctAnswer: "Maqsadni belgilash, harakat sabablarini kurashishi, qaror qabul qilish, uni amalga oshirish"
   },
   {
-    question: "O'ziga bo'lgan **munosabatni ifodalovchi sifatlar** qaysi qatorda ko‘rsatilgan?",
+    question: "O'ziga bo'lgan **munosabatni ifodalovchi sifatlar** qaysi qatorda koï¿½rsatilgan?",
     options: [
       "Yaxshilik, mehribonlik",
-      "G‘ururlilik, shuhratparastlik, mag‘rurlik, o‘zini ulug‘lash, kamtarlik",
+      "Gï¿½ururlilik, shuhratparastlik, magï¿½rurlik, oï¿½zini ulugï¿½lash, kamtarlik",
       "Mehnatsevarlik, dangasalik",
       "Tozalik yoki ifloslik"
     ],
-    correctAnswer: "G‘ururlilik, shuhratparastlik, mag‘rurlik, o‘zini ulug‘lash, kamtarlik"
+    correctAnswer: "Gï¿½ururlilik, shuhratparastlik, magï¿½rurlik, oï¿½zini ulugï¿½lash, kamtarlik"
   },
   {
     question: "**Interes** (Qiziqish) qanday psixik hodisa?",
@@ -1021,11 +1021,11 @@ const questionsData = [
     question: "**Refleksiya** (Psixologiyada) nima?",
     options: [
       "Faqat tashqariga qarash",
-      "Shaxsning o‘z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi",
+      "Shaxsning oï¿½z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi",
       "Faqat yugurish",
       "Faqat tinglash"
     ],
-    correctAnswer: "Shaxsning o‘z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi"
+    correctAnswer: "Shaxsning oï¿½z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi"
   },
   {
     question: "**Diqqatning barqarorligi** nima?",
@@ -2228,7 +2228,7 @@ const questionsData = [
     correctAnswer: "Inson va hayvonlarning psixikasi, psixik faoliyatining qonuniyatlari"
   },
   {
-    question: "Psixik hodisalar tarkibiga kiruvchi **shaxsning individual ruhiy xususiyatlari** qaysi qatorda ko‘rsatilgan?",
+    question: "Psixik hodisalar tarkibiga kiruvchi **shaxsning individual ruhiy xususiyatlari** qaysi qatorda koï¿½rsatilgan?",
     options: [
       "Sezgi, idrok, xotira, tafakkur",
       "Temperament, xarakter, qobiliyat",
@@ -2241,21 +2241,21 @@ const questionsData = [
     question: "Diqqatning asosiy funksiyasi nima?",
     options: [
       "Faqat eslab qolish",
-      "Shaxsning ongini ma’lum obyektga yo‘naltirish va uzoq vaqt davomida barqaror qaratib tura olish",
+      "Shaxsning ongini maï¿½lum obyektga yoï¿½naltirish va uzoq vaqt davomida barqaror qaratib tura olish",
       "Faqat gapirish",
       "Faqat yurish"
     ],
-    correctAnswer: "Shaxsning ongini ma’lum obyektga yo‘naltirish va uzoq vaqt davomida barqaror qaratib tura olish"
+    correctAnswer: "Shaxsning ongini maï¿½lum obyektga yoï¿½naltirish va uzoq vaqt davomida barqaror qaratib tura olish"
   },
   {
     question: "Diqqatning **'kontsentratsiyasi'** nima?",
     options: [
       "Faqat joyni o'zgartirish",
-      "Insonning o‘z diqqatini ma’lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi",
+      "Insonning oï¿½z diqqatini maï¿½lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi",
       "Faqat eslab qolish tezligi",
       "Faqat yozish"
     ],
-    correctAnswer: "Insonning o‘z diqqatini ma’lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi"
+    correctAnswer: "Insonning oï¿½z diqqatini maï¿½lum obyektga uzoq vaqt davomida barqaror qaratib tura olishi"
   },
   {
     question: "**Sezgi** qanday psixik jarayon?",
@@ -2271,11 +2271,11 @@ const questionsData = [
     question: "**Idrok** (Vospriyatiye) nima?",
     options: [
       "Faqat bir xususiyatni aks ettirish",
-      "Ob’ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish",
+      "Obï¿½ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish",
       "Faqat yozish",
       "Faqat xotira"
     ],
-    correctAnswer: "Ob’ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish"
+    correctAnswer: "Obï¿½ektlarni (narsalarni) butun holda, uning barcha xususiyatlari majmuida aks ettirish"
   },
   {
     question: "**Tafakkur**ning asosiy funksiyasi?",
@@ -2401,11 +2401,11 @@ const questionsData = [
     question: "Iroda (Volya) nima?",
     options: [
       "Faqat orzu",
-      "Shaxsning o‘z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati",
+      "Shaxsning oï¿½z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati",
       "Faqat tana kuchi",
       "Faqat temperament"
     ],
-    correctAnswer: "Shaxsning o‘z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati"
+    correctAnswer: "Shaxsning oï¿½z xatti-harakatlari, fikrlari va hissiyotlarini ongli ravishda boshqarish qobiliyati"
   },
   {
     question: "Irodaviy harakatning asosiy bosqichlari?",
@@ -2418,14 +2418,14 @@ const questionsData = [
     correctAnswer: "Maqsadni belgilash, harakat sabablarini kurashishi, qaror qabul qilish, uni amalga oshirish"
   },
   {
-    question: "O'ziga bo'lgan **munosabatni ifodalovchi sifatlar** qaysi qatorda ko‘rsatilgan?",
+    question: "O'ziga bo'lgan **munosabatni ifodalovchi sifatlar** qaysi qatorda koï¿½rsatilgan?",
     options: [
       "Yaxshilik, mehribonlik",
-      "G‘ururlilik, shuhratparastlik, mag‘rurlik, o‘zini ulug‘lash, kamtarlik",
+      "Gï¿½ururlilik, shuhratparastlik, magï¿½rurlik, oï¿½zini ulugï¿½lash, kamtarlik",
       "Mehnatsevarlik, dangasalik",
       "Tozalik yoki ifloslik"
     ],
-    correctAnswer: "G‘ururlilik, shuhratparastlik, mag‘rurlik, o‘zini ulug‘lash, kamtarlik"
+    correctAnswer: "Gï¿½ururlilik, shuhratparastlik, magï¿½rurlik, oï¿½zini ulugï¿½lash, kamtarlik"
   },
   {
     question: "**Interes (Qiziqish)** qanday psixik hodisa?",
@@ -2771,11 +2771,11 @@ const questionsData = [
     question: "**Refleksiya** (Psixologiyada) nima?",
     options: [
       "Faqat tashqariga qarash",
-      "Shaxsning o‘z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi",
+      "Shaxsning oï¿½z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi",
       "Faqat yugurish",
       "Faqat tinglash"
     ],
-    correctAnswer: "Shaxsning o‘z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi"
+    correctAnswer: "Shaxsning oï¿½z ichki ruhiy holati, fikrlari, xatti-harakatlari va o'zgarishlarini o'zi tahlil qilishi"
   },
   {
     question: "**Diqqatning barqarorligi** nima?",
@@ -2958,37 +2958,37 @@ const questionsData = [
     correctAnswer: "O'qish jarayonini buzilishi (o'qishdagi qiyinchilik)"
   },
   {
-    question: "**Inklyuziv ta’lim** deganda nimani tushunasiz?",
+    question: "**Inklyuziv taï¿½lim** deganda nimani tushunasiz?",
     options: [
       "Faqat maxsus maktabda o'qitish",
-      "Imkoniyati cheklangan bolalarning sog‘lom tengdoshlari bilan birga umumiy ta’lim maktablarida o‘qitilishi",
+      "Imkoniyati cheklangan bolalarning sogï¿½lom tengdoshlari bilan birga umumiy taï¿½lim maktablarida oï¿½qitilishi",
       "Faqat uyda o'qitish",
       "Faqat alohida o'qitish"
     ],
-    correctAnswer: "Imkoniyati cheklangan bolalarning sog‘lom tengdoshlari bilan birga umumiy ta’lim maktablarida o‘qitilishi"
+    correctAnswer: "Imkoniyati cheklangan bolalarning sogï¿½lom tengdoshlari bilan birga umumiy taï¿½lim maktablarida oï¿½qitilishi"
   },
   {
-    question: "Inklyuziv ta’limning asosiy maqsadi nima?",
+    question: "Inklyuziv taï¿½limning asosiy maqsadi nima?",
     options: [
       "Faqat bolalarni ajratish",
-      "Barcha bolalar uchun sifatli ta’lim olishga teng imkoniyat yaratish va ularning ijtimoiy integratsiyasini ta'minlash",
+      "Barcha bolalar uchun sifatli taï¿½lim olishga teng imkoniyat yaratish va ularning ijtimoiy integratsiyasini ta'minlash",
       "Faqat alohida dars berish",
       "Faqat ota-onalarni cheklash"
     ],
-    correctAnswer: "Barcha bolalar uchun sifatli ta’lim olishga teng imkoniyat yaratish va ularning ijtimoiy integratsiyasini ta'minlash"
+    correctAnswer: "Barcha bolalar uchun sifatli taï¿½lim olishga teng imkoniyat yaratish va ularning ijtimoiy integratsiyasini ta'minlash"
   },
   {
-    question: "Inklyuziv ta’limda **'individual yondashuv'** nimani anglatadi?",
+    question: "Inklyuziv taï¿½limda **'individual yondashuv'** nimani anglatadi?",
     options: [
       "Barchani bir xil baholash",
       "Har bir bolaga uning individual imkoniyatiga, ehtiyojiga va qobiliyatiga mos topshiriq va sharoit berish",
       "Faqat oddiy darslikdan foydalanish",
-      "Ajratilgan o‘quv dasturi"
+      "Ajratilgan oï¿½quv dasturi"
     ],
     correctAnswer: "Har bir bolaga uning individual imkoniyatiga, ehtiyojiga va qobiliyatiga mos topshiriq va sharoit berish"
   },
   {
-    question: "Inklyuziv ta’limning asosiy tamoyillaridan biri?",
+    question: "Inklyuziv taï¿½limning asosiy tamoyillaridan biri?",
     options: [
       "Faqat nazorat",
       "Hamkorlik va tenglik",
@@ -3003,12 +3003,12 @@ const questionsData = [
       "Oddiy daftar",
       "Moslashtirilgan kompyuter va texnik vositalar (yirik shriftli, sensorli, Braille displeylari)",
       "Telefon",
-      "Qo‘shni yordamida"
+      "Qoï¿½shni yordamida"
     ],
     correctAnswer: "Moslashtirilgan kompyuter va texnik vositalar (yirik shriftli, sensorli, Braille displeylari)"
   },
   {
-    question: "Inklyuziv ta’limda **'moslashtirilgan baholash'** nimani bildiradi?",
+    question: "Inklyuziv taï¿½limda **'moslashtirilgan baholash'** nimani bildiradi?",
     options: [
       "Faqat imtihon natijasi",
       "Bolaning individual imkoniyatiga, uning o'quv dasturidagi o'zgarishlarga qarab baholash",
@@ -3018,14 +3018,14 @@ const questionsData = [
     correctAnswer: "Bolaning individual imkoniyatiga, uning o'quv dasturidagi o'zgarishlarga qarab baholash"
   },
   {
-    question: "**Integratsiyalashgan ta’lim**da sog‘lom bolalar uchun qanday afzallik bor?",
+    question: "**Integratsiyalashgan taï¿½lim**da sogï¿½lom bolalar uchun qanday afzallik bor?",
     options: [
       "Faqat bilim olish",
-      "Mehr-shafqat, tolerantlik (bag'rikenglik) va boshqalar ehtiyojlarini tushunishni o‘rganish",
+      "Mehr-shafqat, tolerantlik (bag'rikenglik) va boshqalar ehtiyojlarini tushunishni oï¿½rganish",
       "Faqat o'yin",
       "Faqat jismoniy rivojlanish"
     ],
-    correctAnswer: "Mehr-shafqat, tolerantlik (bag'rikenglik) va boshqalar ehtiyojlarini tushunishni o‘rganish"
+    correctAnswer: "Mehr-shafqat, tolerantlik (bag'rikenglik) va boshqalar ehtiyojlarini tushunishni oï¿½rganish"
   },
   {
     question: "**Kompleks yondashuv** (maxsus pedagogikada) nima?",
@@ -3148,7 +3148,7 @@ const questionsData = [
     correctAnswer: "Bolaning rivojlanishdagi nuqson turi, darajasi va sabablarini aniqlash, korreksion ish rejasini tuzish"
   },
   {
-    question: "Inklyuziv ta’lim muhitida **o'qituvchi-defektolog**ning o'rni?",
+    question: "Inklyuziv taï¿½lim muhitida **o'qituvchi-defektolog**ning o'rni?",
     options: [
       "Faqat oddiy dars o'tish",
       "Maxsus ehtiyojli bolalar uchun ta'lim jarayonini moslashtirish va korreksion yordam berish",
