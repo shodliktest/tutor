@@ -14,42 +14,43 @@ def get_uz_time():
     return datetime.datetime.now(uz_tz).strftime('%H:%M:%S')
 
 # --- 2. MULTI-THREADING UCHUN XAVFSIZ BAZA ---
-# Dekorator yordamida bazani oqimlar uchun umumiy qilamiz
 @st.cache_resource
 def init_shared_resources():
-    # Fayldan yuklash
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
-            try:
-                data = json.load(f)
-            except:
-                data = {}
+            try: data = json.load(f)
+            except: data = {}
     else:
         data = {}
     
-    # Bot holati va rejimlarini saqlash uchun lug'at
     settings = {"service": True, "quiz": True}
     return data, settings
 
-# Global o'zgaruvchilarga biriktiramiz
 db, bot_settings = init_shared_resources()
 
 def save_db():
     with open(DATA_FILE, "w") as f:
         json.dump(db, f, indent=4)
 
-# API kalitlar
+# --- 3. GROQ CLIENT SOZLAMASI ---
 try:
-    DEEPSEEK_KEY = st.secrets["DEEPSEEK_API_KEY"]
+    GROQ_KEY = st.secrets["GROQ_API_KEY"]
     BOT_TOKEN = st.secrets["BOT_TOKEN"]
 except:
-    st.error("❌ Secrets sozlanmagan!")
+    st.error("❌ Secrets-da GROQ_API_KEY yoki BOT_TOKEN topilmadi!")
     st.stop()
 
-client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
+# Groq OpenAI kutubxonasi orqali ulanadi
+client = OpenAI(
+    api_key=GROQ_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
+# Tavsiya etilgan model: llama-3.3-70b-versatile
+MODEL_NAME = "llama-3.3-70b-versatile" 
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- 3. MENYULAR (Original ko'rinishda) ---
+# --- 4. MENYULAR VA ADMIN PANEL ---
 def main_menu(uid):
     menu = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     if int(uid) == ADMIN_ID:
@@ -67,7 +68,7 @@ def admin_panel_markup():
     menu.add("♻️ Reboot", "⬅️ Orqaga")
     return menu
 
-# --- 4. BOT MANTIQI ---
+# --- 5. BOT MANTIQI ---
 
 @bot.message_handler(commands=['start'])
 def welcome(m):
@@ -76,49 +77,44 @@ def welcome(m):
         db[uid] = {"name": m.from_user.first_name, "score": 0, "tests": 0}
         save_db()
     
-    # ORIGINAL JAVOB MATNI (To'liq holatda)
     msg_text = (
-        f"👋 **Assalomu alaykum, {m.from_user.first_name}!**\n\n"
-        "Men sizning intellektual repetitoringizman. Men bilan har qanday fanni o'rganishingiz mumkin. "
-        "Siz uchun maxsus AI tahlil tizimi tayyorlab qo'yilgan:\n\n"
-        "🔹 **O'rganish:** Savol bering, AI sizga chuqur tushuncha beradi.\n"
-        "🔹 **Sinov:** 'Test' deb yozing va bilimingizni tekshiring.\n"
-        "🔹 **Tahlil:** Xato qilsangiz, AI sizga sababini tushuntiradi.\n\n"
-        "🚀 **Boshlash uchun xohlagan faningizdan savol yuboring!**"
+        f"🎓 **Assalomu alaykum, {m.from_user.first_name}!**\n\n"
+        "Men Groq LPU texnologiyasi asosida ishlovchi o‘ta tezkor AI repetitorman. "
+        "Men bilan fanni 10 barobar tezroq o‘rganishingiz mumkin:\n\n"
+        "⚡ **Tezkor javob:** Savol yuboring va soniyalar ichida tushuntirish oling.\n"
+        "📝 **Smart Test:** Bilimingizni sinash uchun real vaqtda testlar tuzaman.\n"
+        "📊 **Tahlil:** Har bir xatoingizni mantiqiy tushuntirib beraman.\n\n"
+        "🚀 **Qaysi fandan darsni boshlaymiz?**"
     )
     
     if int(uid) == ADMIN_ID:
-        msg_text += "\n\n😎 **Salom, Admin! Boshqaruv paneli aktiv.**"
+        msg_text += "\n\n😎 **Salom, Admin! Groq tizimi tayyor.**"
         
     bot.send_message(uid, msg_text, parse_mode="Markdown", reply_markup=main_menu(uid))
 
-# ADMIN PANEL FUNKSIYALARI
+# ADMIN AMALLARI (Original)
 @bot.message_handler(func=lambda m: m.text == "👑 Admin Panel" and m.chat.id == ADMIN_ID)
-def admin_panel(m):
-    bot.send_message(m.chat.id, "🛠 **Admin boshqaruv markazi:**", reply_markup=admin_panel_markup())
+def admin_p(m):
+    bot.send_message(m.chat.id, "🛠 **Boshqaruv markazi:**", reply_markup=admin_panel_markup())
 
 @bot.message_handler(func=lambda m: m.chat.id == ADMIN_ID and m.text in [
-    "📊 Statistika", "📂 Bazani yuklash", "🛑 Botni to'xtatish", "✅ Botni yoqish", 
-    "📵 Testni o'chirish", "📶 Testni yoqish", "♻️ Reboot", "⬅️ Orqaga"
+    "📊 Statistika", "🛑 Botni to'xtatish", "✅ Botni yoqish", "♻️ Reboot", "⬅️ Orqaga"
 ])
-def handle_admin_tools(m):
+def admin_tools(m):
     if m.text == "📊 Statistika":
-        bot.send_message(m.chat.id, f"👥 **Jami foydalanuvchilar:** {len(db)}\n"
-                                   f"🤖 Bot: {'✅ Aktiv' if bot_settings['service'] else '🛑 Yopiq'}\n"
-                                   f"📝 Test: {'✅ Ochiq' if bot_settings['quiz'] else '📵 Yopiq'}")
+        bot.send_message(m.chat.id, f"👥 O'quvchilar: {len(db)}\n🤖 Xizmat: {bot_settings['service']}")
     elif m.text == "🛑 Botni to'xtatish":
         bot_settings['service'] = False
-        bot.send_message(m.chat.id, "🛑 Bot xizmati to'xtatildi.")
+        bot.send_message(m.chat.id, "🛑 To'xtatildi.")
     elif m.text == "✅ Botni yoqish":
         bot_settings['service'] = True
-        bot.send_message(m.chat.id, "✅ Bot xizmati yoqildi.")
+        bot.send_message(m.chat.id, "✅ Yoqildi.")
     elif m.text == "♻️ Reboot":
-        bot.send_message(m.chat.id, "♻️ Server Reboot...")
         st.rerun()
     elif m.text == "⬅️ Orqaga":
-        bot.send_message(m.chat.id, "Asosiy menyu:", reply_markup=main_menu(m.chat.id))
+        bot.send_message(m.chat.id, "Menyu:", reply_markup=main_menu(m.chat.id))
 
-# FOYDALANUVCHI MANTIQI
+# --- 6. ASOSIY TUTOR MANTIQI ---
 @bot.message_handler(func=lambda m: True)
 def tutor_logic(m):
     uid = str(m.chat.id)
@@ -129,15 +125,15 @@ def tutor_logic(m):
 
     if m.text == "📊 Natijalarim":
         stats = db.get(uid, {"score": 0, "tests": 0})
-        bot.send_message(uid, f"🏆 Ballaringiz: {stats['score']}\n📝 Testlar: {stats['tests']}")
+        bot.send_message(uid, f"🏆 Ballar: {stats['score']}\n📝 Testlar: {stats['tests']}")
         return
 
-    wait = bot.send_message(uid, "💡 *AI Tutor o'ylamoqda...*", parse_mode="Markdown")
+    wait = bot.send_message(uid, "⚡ *Groq LPU tahlil qilmoqda...*", parse_mode="Markdown")
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "Siz repetitor botisiz. Test tuzish va javobni tahlil qilish sizning vazifangiz."},
+                {"role": "system", "content": "Siz intellektual repetitorsiz. Groq kabi tez va aniq javob bering."},
                 {"role": "user", "content": m.text}
             ]
         )
@@ -145,22 +141,21 @@ def tutor_logic(m):
     except Exception as e:
         bot.edit_message_text(f"❌ Xatolik: {e}", uid, wait.message_id)
 
-# --- 5. STREAMLIT UI ---
-st.title("🎓 Smart Tutor Admin Dashboard")
-st.write(f"Server vaqti: {get_uz_time()}")
+# --- 7. STREAMLIT UI ---
+st.title("🎓 Smart Tutor Dashboard (Groq Edition)")
+st.write(f"Tizim statusi: **Online** | Model: `{MODEL_NAME}`")
 
 c1, c2 = st.columns(2)
 with c1: st.metric("O'quvchilar", len(db))
-with c2: st.metric("Bot Status", "Online" if bot_settings['service'] else "Offline")
+with c2: st.metric("Tezlik", "O'ta yuqori (LPU)")
 
 if db:
     st.table(db)
 
-# Botni ishga tushirish (Singleton pattern)
 @st.cache_resource
-def start_bot_thread():
+def start_bot():
     thread = threading.Thread(target=bot.infinity_polling, daemon=True)
     thread.start()
     return True
 
-start_bot_thread()
+start_bot()
