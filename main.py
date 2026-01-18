@@ -79,7 +79,7 @@ def welcome(m):
     
     msg_text = (
         f"🎓 **Assalomu alaykum, {m.from_user.first_name}!**\n\n"
-        "Men Groq LPU texnologiyasi asosida ishlovchi o‘ta tezkor AI repetitorman. "
+        "Men SHodlik AI texnologiyasi asosida ishlovchi o‘ta tezkor AI repetitorman. "
         "Men bilan fanni 10 barobar tezroq o‘rganishingiz mumkin:\n\n"
         "⚡ **Tezkor javob:** Savol yuboring va soniyalar ichida tushuntirish oling.\n"
         "📝 **Smart Test:** Bilimingizni sinash uchun real vaqtda testlar tuzaman.\n"
@@ -88,7 +88,7 @@ def welcome(m):
     )
     
     if int(uid) == ADMIN_ID:
-        msg_text += "\n\n😎 **Salom, Admin! Groq tizimi tayyor.**"
+        msg_text += "\n\n😎 **Salom, Admin! SHodlik AI tizimi tayyor.**"
         
     bot.send_message(uid, msg_text, parse_mode="Markdown", reply_markup=main_menu(uid))
 
@@ -128,7 +128,7 @@ def tutor_logic(m):
         bot.send_message(uid, f"🏆 Ballar: {stats['score']}\n📝 Testlar: {stats['tests']}")
         return
 
-    wait = bot.send_message(uid, "⚡ *Groq LPU tahlil qilmoqda...*", parse_mode="Markdown")
+    wait = bot.send_message(uid, "⚡ *SHodlik AI tahlil qilmoqda...*", parse_mode="Markdown")
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
