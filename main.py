@@ -2,25 +2,30 @@ import streamlit as st
 import telebot
 from telebot import types
 from openai import OpenAI
-import os, threading, json, time
+import os, threading, json, time, datetime
 
-# --- 1. SOZLAMALAR VA ADMIN ---
+# --- 1. ADMIN VA GLOBAL SOZLAMALAR ---
 ADMIN_ID = 1416457518 
 DATA_FILE = "user_learning_data.json"
+
+# Bot holatini Session State orqali boshqarish
+if 'service_on' not in st.session_state:
+    st.session_state.service_active = True  # Umumiy bot xizmati
+if 'quiz_active' not in st.session_state:
+    st.session_state.quiz_active = True     # Test rejimi
 
 # API kalitlarni Secrets-dan olish
 try:
     DEEPSEEK_KEY = st.secrets["DEEPSEEK_API_KEY"]
     BOT_TOKEN = st.secrets["BOT_TOKEN"]
 except:
-    st.error("❌ Secrets-da DEEPSEEK_API_KEY yoki BOT_TOKEN topilmadi!")
+    st.error("❌ Secrets sozlanmagan!")
     st.stop()
 
-# Klientlarni ishga tushirish
 client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- 2. MA'LUMOTLAR BAZASI MANTIQI ---
+# --- 2. BAZA BILAN ISHLASH ---
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -31,16 +36,26 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# Foydalanuvchi ma'lumotlarini yuklash
 if 'db' not in st.session_state:
     st.session_state.db = load_data()
 
-# --- 3. AI TUTOR PROMPT ---
-SYSTEM_PROMPT = """Siz professional Repetitor (Tutor) botisiz.
-1. Foydalanuvchi har qanday fandan savol bersa, aniq va ilmiy javob bering.
-2. Agar foydalanuvchi "Test" deb yozsa, oxirgi suhbatdan kelib chiqib 4 variantli 1 ta test tuzing.
-3. Foydalanuvchi javobini tekshiring: to'g'ri bo'lsa rag'batlantiring, xato bo'lsa 'Nega'ligini tushuntiring.
-4. Javob berishda doim o'quvchini qo'llab-quvvatlovchi ohangda bo'ling."""
+# --- 3. MENYU VA TUGMALAR ---
+def main_menu(uid):
+    menu = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    if int(uid) == ADMIN_ID:
+        menu.add(types.KeyboardButton("👑 Admin Panel"))
+    menu.add(types.KeyboardButton("📝 Test ishlash"), types.KeyboardButton("📊 Natijalarim"))
+    menu.add(types.KeyboardButton("ℹ️ Yordam"))
+    return menu
+
+def admin_panel_markup():
+    menu = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    menu.add("📊 Statistika", "📂 Bazani yuklash")
+    menu.add("📢 Hammaga xabar", "👤 UID-ga xabar")
+    menu.add("🛑 Botni to'xtatish", "✅ Botni yoqish")
+    menu.add("📵 Testni o'chirish", "📶 Testni yoqish")
+    menu.add("♻️ Reboot", "⬅️ Orqaga")
+    return menu
 
 # --- 4. BOT HANDLERS ---
 
@@ -48,94 +63,153 @@ SYSTEM_PROMPT = """Siz professional Repetitor (Tutor) botisiz.
 def welcome(m):
     uid = str(m.chat.id)
     if uid not in st.session_state.db:
-        st.session_state.db[uid] = {
-            "name": m.from_user.first_name,
-            "score": 0,
-            "tests_taken": 0,
-            "level": "Boshlang'ich"
-        }
+        st.session_state.db[uid] = {"name": m.from_user.first_name, "score": 0, "tests": 0}
         save_data(st.session_state.db)
     
-    msg = (f"🎓 **Assalomu alaykum, {m.from_user.first_name}!**\n\n"
-           f"Men sizning shaxsiy AI Tutor botingizman. Men bilan quyidagilarni qilishingiz mumkin:\n"
-           f"🔹 Xohlagan faningizdan savol so'rash.\n"
-           f"🔹 'Test' deb yozib bilimingizni sinash.\n"
-           f"🔹 Xatolaringiz ustida ishlash.\n\n"
-           f"🚀 Qaysi fanni o'rganishni boshlaymiz?")
+    msg = (f"🎓 **Xush kelibsiz, {m.from_user.first_name}!**\n\n"
+           "Men sizning intellektual repetitoringizman. Men bilan har qanday fanni o'rganishingiz mumkin.")
     
-    # Tugmalar
-    menu = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    menu.add("📝 Test ishlash", "📊 Mening natijalarim")
-    menu.add("ℹ️ Yordam")
-    
-    bot.send_message(uid, msg, parse_mode="Markdown", reply_markup=menu)
+    if int(uid) == ADMIN_ID:
+        msg += "\n\n😎 **Salom, Admin! Boshqaruv paneli aktivlashdi.**"
+        
+    bot.send_message(uid, msg, parse_mode="Markdown", reply_markup=main_menu(uid))
 
+# --- ADMIN FUNKSIYALARI ---
+@bot.message_handler(func=lambda m: m.text == "👑 Admin Panel" and m.chat.id == ADMIN_ID)
+def open_admin(m):
+    bot.send_message(m.chat.id, "🛠 **Admin boshqaruv markazi:**", reply_markup=admin_panel_markup())
+
+@bot.message_handler(func=lambda m: m.chat.id == ADMIN_ID and m.text in [
+    "📊 Statistika", "📂 Bazani yuklash", "🛑 Botni to'xtatish", "✅ Botni yoqish", 
+    "📵 Testni o'chirish", "📶 Testni yoqish", "♻️ Reboot", "⬅️ Orqaga"
+])
+def admin_actions(m):
+    if m.text == "📊 Statistika":
+        count = len(st.session_state.db)
+        bot.send_message(m.chat.id, f"👥 **Jami foydalanuvchilar:** {count}\n"
+                                   f"🤖 Bot: {'✅ Aktiv' if st.session_state.service_active else '🛑 To\'xtatilgan'}\n"
+                                   f"📝 Test: {'✅ Ochiq' if st.session_state.quiz_active else '📵 Yopiq'}")
+    
+    elif m.text == "📂 Bazani yuklash":
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "rb") as f:
+                bot.send_document(m.chat.id, f, caption="📂 Foydalanuvchilar ma'lumotlar bazasi")
+    
+    elif m.text == "🛑 Botni to'xtatish":
+        st.session_state.service_active = False
+        bot.send_message(m.chat.id, "🛑 Bot xizmati barcha uchun to'xtatildi.")
+        
+    elif m.text == "✅ Botni yoqish":
+        st.session_state.service_active = True
+        bot.send_message(m.chat.id, "✅ Bot xizmati qayta yoqildi.")
+
+    elif m.text == "📵 Testni o'chirish":
+        st.session_state.quiz_active = False
+        bot.send_message(m.chat.id, "📵 Test rejimi yopildi.")
+
+    elif m.text == "📶 Testni yoqish":
+        st.session_state.quiz_active = True
+        bot.send_message(m.chat.id, "📶 Test rejimi yoqildi.")
+
+    elif m.text == "♻️ Reboot":
+        bot.send_message(m.chat.id, "♻️ Server qayta yuklanmoqda...")
+        st.rerun()
+
+    elif m.text == "⬅️ Orqaga":
+        bot.send_message(m.chat.id, "Asosiy menyu:", reply_markup=main_menu(m.chat.id))
+
+# ADMIN XABARLASHISH TIZIMI
+@bot.message_handler(func=lambda m: m.text == "📢 Hammaga xabar" and m.chat.id == ADMIN_ID)
+def broadcast_step1(m):
+    msg = bot.send_message(m.chat.id, "📢 Xabar matnini yuboring (yoki 'bekor'):")
+    bot.register_next_step_handler(msg, broadcast_step2)
+
+def broadcast_step2(m):
+    if m.text.lower() == 'bekor': return
+    success = 0
+    for uid in st.session_state.db.keys():
+        try:
+            bot.send_message(uid, f"📢 **ADMIN XABARI:**\n\n{m.text}", parse_mode="Markdown")
+            success += 1
+            time.sleep(0.1)
+        except: pass
+    bot.send_message(m.chat.id, f"✅ {success} ta foydalanuvchiga yuborildi.")
+
+@bot.message_handler(func=lambda m: m.text == "👤 UID-ga xabar" and m.chat.id == ADMIN_ID)
+def private_step1(m):
+    msg = bot.send_message(m.chat.id, "👤 Foydalanuvchi UID raqamini kiriting:")
+    bot.register_next_step_handler(msg, private_step2)
+
+def private_step2(m):
+    try:
+        target_uid = int(m.text)
+        msg = bot.send_message(m.chat.id, f"UID: {target_uid} uchun xabarni yozing:")
+        bot.register_next_step_handler(msg, lambda message: private_step3(message, target_uid))
+    except:
+        bot.send_message(m.chat.id, "❌ UID raqam bo'lishi kerak.")
+
+def private_step3(m, target_uid):
+    try:
+        bot.send_message(target_uid, f"📩 **ADMIN XABARI:**\n\n{m.text}", parse_mode="Markdown")
+        bot.send_message(m.chat.id, "✅ Xabar yuborildi.")
+    except:
+        bot.send_message(m.chat.id, "❌ Yuborishda xatolik yuz berdi.")
+
+# --- 5. STANDART FOYDALANUVCHI MANTIQI ---
 @bot.message_handler(func=lambda m: True)
-def handle_text(m):
+def handle_all_messages(m):
     uid = str(m.chat.id)
-    user_msg = m.text
     
-    if uid not in st.session_state.db:
-        st.session_state.db[uid] = {"name": m.from_user.first_name, "score": 0, "tests_taken": 0, "level": "Boshlang'ich"}
-
-    # Natijalarni ko'rish
-    if user_msg == "📊 Mening natijalarim":
-        stats = st.session_state.db[uid]
-        bot.send_message(uid, f"📊 **Sizning ko'rsatkichlaringiz:**\n\n"
-                              f"🏆 Ballar: {stats['score']}\n"
-                              f"📝 Ishlangan testlar: {stats['tests_taken']}\n"
-                              f"🎖 Daraja: {stats['level']}")
+    # Bot to'xtatilgan bo'lsa (Admin emas foydalanuvchilar uchun)
+    if not st.session_state.service_active and int(uid) != ADMIN_ID:
+        bot.send_message(uid, "🛑 **Kechirasiz!** Bot hozirda vaqtincha to'xtatilgan. Admin tomonidan tez orada qayta yoqiladi.")
         return
 
-    # AI javobini kutish
-    wait_msg = bot.send_message(uid, "💡 *AI Tutor o'ylamoqda...*", parse_mode="Markdown")
+    # Test rejimi yopilgan bo'lsa
+    if m.text == "📝 Test ishlash" and not st.session_state.quiz_active and int(uid) != ADMIN_ID:
+        bot.send_message(uid, "📵 **Hozirda test rejimi yopiq.** Iltimos, keyinroq urinib ko'ring.")
+        return
+
+    # Natijalarni ko'rish
+    if m.text == "📊 Natijalarim":
+        stats = st.session_state.db.get(uid, {"score": 0, "tests": 0})
+        bot.send_message(uid, f"📊 **Sizning ko'rsatkichlaringiz:**\n\n🏆 Ballar: {stats['score']}\n📝 Ishlangan testlar: {stats['tests']}")
+        return
+
+    # DeepSeek AI tahlili
+    wait = bot.send_message(uid, "💡 *AI Tutor o'ylamoqda...*", parse_mode="Markdown")
     
     try:
-        # DeepSeek API so'rovi
-        # Test rejimi uchun mantiqni biroz kuchaytiramiz
-        input_text = f"Foydalanuvchi xabari: {user_msg}. Agar bu javob bo'lsa tekshiring, agar savol bo'lsa javob bering, agar 'test' bo'lsa test tuzing."
-        
         response = client.chat.completions.create(
-            model="deepseek-chat", # Yoki "deepseek-reasoner" (R1)
+            model="deepseek-chat",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": input_text}
+                {"role": "system", "content": "Siz repetitor botisiz. Test rejimi yoqilganda 1 ta savol bering."},
+                {"role": "user", "content": m.text}
             ]
         )
-        
         ai_reply = response.choices[0].message.content
-        
-        # Ballarni yangilash (Oddiy mantiq: Agar AI "To'g'ri" yoki "Barakalla" desa ball berish)
-        if "to'g'ri" in ai_reply.lower() or "barakalla" in ai_reply.lower():
-            st.session_state.db[uid]["score"] += 10
-            st.session_state.db[uid]["tests_taken"] += 1
-            save_data(st.session_state.db)
-
-        bot.edit_message_text(ai_reply, uid, wait_msg.message_id, parse_mode="Markdown")
-        
+        bot.edit_message_text(ai_reply, uid, wait.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ Xatolik yuz berdi: {e}", uid, wait_msg.message_id)
+        bot.edit_message_text(f"❌ Xatolik: {e}", uid, wait.message_id)
 
-# --- 5. STREAMLIT DASHBOARD (Admin Panel) ---
-st.title("🎓 Smart AI Tutor Dashboard")
+# --- 6. STREAMLIT UI ---
+st.title("🎓 Smart Tutor Admin Panel")
 
-# Real vaqtda statistika
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Foydalanuvchilar", len(st.session_state.db))
-with col2:
-    st.metric("Ishlangan testlar", sum(u['tests_taken'] for u in st.session_state.db.values()))
-with col3:
-    st.metric("O'rtacha ball", round(sum(u['score'] for u in st.session_state.db.values()) / (len(st.session_state.db) or 1), 1))
+# Statistik Dashboard
 
-st.divider()
 
-st.subheader("👥 Foydalanuvchilar ro'yxati")
-st.table(st.session_state.db)
+c1, c2 = st.columns(2)
+with c1:
+    st.metric("Jami o'quvchilar", len(st.session_state.db))
+with c2:
+    status = "Online" if st.session_state.service_active else "Offline"
+    st.metric("Server holati", status)
 
-# Botni alohida threadda yurgizish
+if st.session_state.db:
+    st.write("### 👥 Foydalanuvchilar Ro'yxati")
+    st.table(st.session_state.db)
+
+# Bot oqimini boshlash
 if 'bot_started' not in st.session_state:
     st.session_state.bot_started = True
     threading.Thread(target=bot.infinity_polling, daemon=True).start()
-
-st.info("ℹ️ Bot Telegramda aktiv ishlamoqda. Dashboard natijalarni real vaqtda ko'rsatadi.")
