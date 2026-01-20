@@ -29,6 +29,7 @@ class AdminStates(StatesGroup):
     waiting_for_bc = State()
 
 def get_uz_time():
+    """Vaqtni 2026.01.20 11:25:00 formatida qaytaradi"""
     return datetime.now(uz_tz).strftime('%Y.%m.%d %H:%M:%S')
 
 def log_user_and_get_count(user: types.User):
@@ -69,7 +70,8 @@ def get_main_menu(uid):
     kb.button(text="🌐 Saytga kirish")
     kb.button(text="👨‍💻 Bog'lanish")
     kb.button(text="ℹ️ Yordam")
-    if uid == ADMIN_ID: kb.button(text="🔑 Admin Panel")
+    if uid == ADMIN_ID:
+        kb.button(text="🔑 Admin Panel")
     kb.adjust(2)
     return kb.as_markup(resize_keyboard=True)
 
@@ -83,6 +85,8 @@ def clean_text(text):
 @dp.message(Command("start"))
 async def cmd_start(m: types.Message):
     count, is_new = log_user_and_get_count(m.from_user)
+    
+    # Adminga yangi foydalanuvchi haqida to'liq xabar yuborish
     if is_new:
         username = f"@{m.from_user.username}" if m.from_user.username else "yo'q"
         admin_report = (
@@ -106,76 +110,89 @@ async def cmd_start(m: types.Message):
     )
     await m.answer(welcome_text, reply_markup=get_main_menu(m.from_user.id), parse_mode="HTML")
 
+@dp.message(F.text == "ℹ️ Yordam")
+async def help_h(m: types.Message):
+    help_info = (
+        "🤖 <b>Bot haqida to'liq ma'lumot:</b>\n\n"
+        "Bu bot sun'iy intellekt (Whisper) yordamida har qanday audio fayl yoki ovozli xabarlarni matnga aylantiradi.\n\n"
+        "🚀 <b>Imkoniyatlari:</b>\n"
+        "✅ <b>20MB gacha</b> fayllarni bepul tahlil qilish.\n"
+        "✅ <b>Tarjima:</b> O'zbek, Ingliz, Rus, Turk va Arab tillariga.\n"
+        "✅ <b>Formatlash:</b> Vaqt bo'yicha (Split) yoki tekis matn (Full Context).\n"
+        "✅ <b>Saqlash:</b> Natijani chatda yoki TXT faylda olish.\n\n"
+        "👨‍💻 <b>Yordam kerakmi?</b>\n"
+        "Bog'lanish tugmasi orqali admin bilan muloqot qilishingiz mumkin."
+    )
+    await m.answer(help_info, parse_mode="HTML")
+
 # BOG'LANISH VA FEEDBACK TIZIMI
 @dp.message(F.text == "👨‍💻 Bog'lanish")
 async def contact_h(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="✍️ Bot orqali yozish", callback_data="msg_to_admin")
     kb.button(text="🌐 Aloqa sahifasi", url="https://shodlikai.github.io/new_3/dastur.html")
-    kb.button(text="✍️ Adminga shaxsiy (TG)", url="tg://user?id=1416457518")
+    kb.button(text="👨‍💻 Adminga bog'lanish", url="tg://user?id=1416457518")
     kb.adjust(1)
     await m.answer("Admin bilan bog'lanish usulini tanlang:", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "msg_to_admin")
 async def start_feedback(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.waiting_for_contact_msg)
-    await call.message.answer("📝 <b>Xabaringizni yozing:</b>\nBarcha savol yoki takliflaringizni bitta xabarda yozib yuboring. Admin tez orada javob qaytaradi.")
+    await call.message.answer("📝 <b>Xabaringizni yozing:</b>\nAdmin tez orada javob qaytaradi.")
     await call.answer()
 
 @dp.message(UserStates.waiting_for_contact_msg)
 async def forward_to_admin(m: types.Message, state: FSMContext):
     await state.clear()
-    # Adminga yuborish
     header = f"📩 <b>YANGI MUROJAAT!</b>\n👤 Foydalanuvchi: {m.from_user.full_name}\n🆔 ID: <code>{m.from_user.id}</code>\n\n"
     await bot.send_message(ADMIN_ID, header + m.text, parse_mode="HTML")
-    await m.answer("✅ <b>Xabaringiz adminga yetkazildi!</b>\nJavobni shu yerda kuting.")
+    await m.answer("✅ <b>Xabaringiz yetkazildi!</b>\nAdmin javobini shu yerda kuting.")
 
-# ADMIN JAVOB QAYTARISH TIZIMI (REPLY)
+# ADMIN REPLY (JAVOB QAYTARISH) TIZIMI
 @dp.message(F.chat.id == ADMIN_ID, F.reply_to_message)
 async def admin_reply_h(m: types.Message):
-    # Reply qilingan xabardan user ID sini ajratib olish (Regex yordamida)
     reply_text = m.reply_to_message.text or m.reply_to_message.caption
     if reply_text and "🆔 ID:" in reply_text:
         try:
             target_id = re.search(r"🆔 ID: (\d+)", reply_text).group(1)
-            # Foydalanuvchiga yuborish
             response = f"💬 <b>Admin javobi:</b>\n\n{m.text}"
             await bot.send_message(chat_id=target_id, text=response, parse_mode="HTML")
-            await m.answer("✅ Javob foydalanuvchiga yuborildi.")
-        except Exception as e:
-            await m.answer(f"❌ Xato: ID topilmadi yoki bot foydalanuvchini topa olmadi. {e}")
+            await m.answer("✅ Javob yuborildi.")
+        except:
+            await m.answer("❌ ID aniqlanmadi.")
 
-# --- AUDIO TAHLIL VA BOSHQALAR (O'zgarishsiz qoldi) ---
-# ... (Yordam, Saytga kirish, Tahlil funksiyalari avvalgi koddagidek saqlansin) ...
-# (Qisqartirilgan holda asosiy mantiq joylandi)
-
-@dp.message(F.text == "ℹ️ Yordam")
-async def help_h(m: types.Message):
-    await m.answer("🎙 <b>Suxandon AI</b> haqida:\n\nBu bot sun'iy intellekt (Whisper) yordamida audioni matnga aylantiradi. \n\nImkoniyatlar:\n✅ 20MB gacha fayl yuklash.\n✅ 5 tilda tarjima.\n✅ TXT formatida saqlash.", parse_mode="HTML")
+# --- AUDIO TAHLIL ---
 
 @dp.message(F.audio | F.voice)
 async def handle_audio(m: types.Message):
     f_size = m.audio.file_size if m.audio else m.voice.file_size
     if f_size > 20 * 1024 * 1024:
-        await m.answer("❌ <b>Hajm juda katta!</b> (Maks 20MB)")
+        await m.answer("❌ <b>Hajm juda katta!</b>\nServer barqarorligi uchun <b>20MB</b> gacha fayllarni qabul qilamiz.")
         return
-    user_data[m.chat.id] = {'fid': m.audio.file_id if m.audio else m.voice.file_id, 
-                            'uname': m.from_user.username if m.from_user.username else m.from_user.full_name}
+    
+    # Username formatlash
+    u_h = f"@{m.from_user.username}" if m.from_user.username else m.from_user.full_name
+    
+    user_data[m.chat.id] = {'fid': m.audio.file_id if m.audio else m.voice.file_id, 'uname': u_h}
+    
     kb = InlineKeyboardBuilder()
     kb.button(text="📄 Original", callback_data="l_orig")
     kb.button(text="🇺🇿 O'zbekcha", callback_data="l_uz")
     kb.button(text="🇬🇧 English", callback_data="l_en")
     kb.button(text="🇷🇺 Русский", callback_data="l_ru")
+    kb.button(text="🇹🇷 Türkçe", callback_data="l_tr")
+    kb.button(text="🇸🇦 Arabcha", callback_data="l_ar")
     kb.adjust(2)
-    await m.answer("🌍 <b>Tahlil tilini tanlang:</b>", reply_markup=kb.as_markup(), parse_mode="HTML")
+    await m.answer("🌍 <b>Tahlil tilini tanlang:</b>\n(Tarjima tanlansa, original matn yoniga tarjimasi qo'shiladi)", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("l_"))
 async def lang_callback(call: types.CallbackQuery):
     user_data[call.message.chat.id]['lang'] = call.data.replace("l_", "")
     kb = InlineKeyboardBuilder()
-    kb.button(text="⏱ Split", callback_data="v_split")
-    kb.button(text="📖 Full Context", callback_data="v_full")
-    await call.message.edit_text("📄 <b>Natija ko'rinishini tanlang:</b>", reply_markup=kb.as_markup(), parse_mode="HTML")
+    kb.button(text="⏱ Split (Vaqt bilan)", callback_data="v_split")
+    kb.button(text="📖 Full Context (Butun)", callback_data="v_full")
+    kb.adjust(1)
+    await call.message.edit_text("📄 <b>Ko'rinishni tanlang:</b>\n\nSplit - matnni vaqt belgilari bilan bo'ladi.\nFull Context - matnni butun holatda beradi.", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("v_"))
 async def view_callback(call: types.CallbackQuery):
@@ -193,7 +210,7 @@ async def start_process(call: types.CallbackQuery):
     data = user_data.get(chat_id)
     await call.message.delete()
     waiting_users += 1
-    wait_msg = await call.message.answer(f"⏳ Navbat: {waiting_users-1}\nTizim: <b>Suxandon AI</b>", parse_mode="HTML")
+    wait_msg = await call.message.answer(f"⏳ Navbat: {waiting_users-1}\nTizim: <b>Suxandon AI</b>")
     
     async with async_lock:
         try:
@@ -240,18 +257,26 @@ async def start_process(call: types.CallbackQuery):
                         except: final_text += f"{tm} {txt}\n\n"
                     else: final_text += f"{tm} {txt}\n\n"
 
-            await progress(100, "✅ Tahlil yakunlandi!")
-            imzo = f"\n\n---\n👤 <b>Yaratuvchi:</b> {data['uname']}\n🤖 <b>Bot:</b> @{(await bot.get_me()).username}\n⏰ <b>Vaqt:</b> {get_uz_time()} (UZB)"
+            for p in range(90, 101, 5): await progress(p, "✅ Yakunlanmoqda..."); await asyncio.sleep(0.1)
+
+            # PECHAT QISMI (Yaratuvchi @username bilan)
+            imzo = (
+                f"\n\n---\n"
+                f"👤 <b>Yaratuvchi:</b> {data['uname']}\n"
+                f"🤖 <b>Bot:</b> @{(await bot.get_me()).username}\n"
+                f"⏰ <b>Vaqt:</b> {get_uz_time()} (UZB)"
+            )
             
             if fmt == "txt":
                 with open(f"res_{chat_id}.txt", "w", encoding="utf-8") as f: f.write(final_text + imzo)
                 await call.message.answer_document(types.FSInputFile(f"res_{chat_id}.txt"), caption="✅ Natija tayyor!")
                 os.remove(f"res_{chat_id}.txt")
             else:
-                if len(final_text + imzo) > 4000:
-                    for i in range(0, len(final_text + imzo), 4000):
-                        await call.message.answer((final_text+imzo)[i:i+4000], parse_mode="HTML")
-                else: await call.message.answer(final_text + imzo, parse_mode="HTML")
+                content = final_text + imzo
+                if len(content) > 4000:
+                    for i in range(0, len(content), 4000):
+                        await call.message.answer(content[i:i+4000], parse_mode="HTML")
+                else: await call.message.answer(content, parse_mode="HTML")
 
             await wait_msg.delete()
             if os.path.exists(f_path): os.remove(f_path)
@@ -263,7 +288,7 @@ async def start_process(call: types.CallbackQuery):
 
 # --- 5. ADMIN PANEL ---
 @dp.message(F.text == "🔑 Admin Panel", F.chat.id == ADMIN_ID)
-async def admin_p_h(m: types.Message):
+async def admin_panel(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="📊 Statistika", callback_data="adm_stats")
     kb.button(text="📋 Ro'yxat", callback_data="adm_list")
@@ -278,9 +303,9 @@ async def admin_calls(call: types.CallbackQuery, state: FSMContext):
         await call.message.answer(f"📊 <b>Statistika:</b>\n\nJami foydalanuvchilar: {count}")
     elif call.data == "adm_list":
         if os.path.exists(USERS_FILE):
-            await call.message.answer_document(types.FSInputFile(USERS_FILE), caption="📂 User ID ro'yxati")
+            await call.message.answer_document(types.FSInputFile(USERS_FILE), caption="📂 Foydalanuvchilar ID ro'yxati")
     elif call.data == "adm_bc":
-        await call.message.answer("📢 Xabarni yuboring:")
+        await call.message.answer("📢 Barcha foydalanuvchilarga yuboriladigan xabarni kiriting:")
         await state.set_state(AdminStates.waiting_for_bc)
 
 @dp.message(AdminStates.waiting_for_bc)
@@ -290,12 +315,13 @@ async def process_bc(m: types.Message, state: FSMContext):
     for uid in ids:
         try: await bot.copy_message(chat_id=uid.strip(), from_chat_id=ADMIN_ID, message_id=m.message_id)
         except: pass
-    await m.answer("✅ Broadcast yakunlandi.")
+    await m.answer("✅ Xabar hamma foydalanuvchilarga yuborildi.")
 
-# --- 6. STREAMLIT ENGINE ---
+# --- 6. STREAMLIT ENGINE (CONFLICT FIX) ---
 def run_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    # handle_signals=False va skip_updates=True konfliktlarni yo'qotadi
     loop.run_until_complete(dp.start_polling(bot, handle_signals=False, skip_updates=True))
 
 if "bot_active" not in st.session_state:
@@ -303,5 +329,5 @@ if "bot_active" not in st.session_state:
     threading.Thread(target=run_bot, daemon=True).start()
 
 st.title("🤖 Suxandon AI Bot Server")
-st.success("Tizim barcha funksiyalar (Feedback, Reply, Admin Panel) bilan faol!")
-    
+st.success("Tizim barcha funksiyalar bilan barqaror ishlamoqda!")
+        
