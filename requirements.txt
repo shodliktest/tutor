@@ -1,4 +1,7 @@
 streamlit
-pyTelegramBotAPI
-openai
-python-dotenv
+aiogram
+openai-whisper
+groq
+deep_translator
+pytz
+torch
