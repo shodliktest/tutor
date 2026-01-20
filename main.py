@@ -1,10 +1,12 @@
 import asyncio
 import os
 import re
+import json  # JSON kutubxonasi qo'shildi
 import threading
 import pytz
 from datetime import datetime
 
+# --- KUTUBXONALAR ---
 import streamlit as st
 from aiogram import Bot, Dispatcher, types, F, html
 from aiogram.filters import Command
@@ -17,7 +19,7 @@ from deep_translator import GoogleTranslator
 
 # --- 0. KONFIGURATSIYA ---
 ADMIN_ID = 1416457518 
-USERS_FILE = "bot_users_list.txt"
+USERS_DB = "user_database.json" # Yangi baza fayli
 uz_tz = pytz.timezone('Asia/Tashkent')
 
 class UserStates(StatesGroup):
@@ -29,31 +31,46 @@ class AdminStates(StatesGroup):
 def get_uz_time():
     return datetime.now(uz_tz).strftime('%Y.%m.%d %H:%M:%S')
 
+# --- YANGILANGAN LOG TIZIMI (TO'LIQ MA'LUMOT) ---
 def log_user_and_get_count(user: types.User):
-    uid = str(user.id)
-    if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "w") as f: pass
-    with open(USERS_FILE, "r") as f:
-        ids = f.read().splitlines()
-    if uid not in ids:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{uid}\n")
-        return len(ids) + 1, True
-    return len(ids), False
+    # Bazani yuklash yoki yaratish
+    if not os.path.exists(USERS_DB):
+        with open(USERS_DB, "w") as f: json.dump([], f)
+    
+    with open(USERS_DB, "r") as f:
+        try: users_list = json.load(f)
+        except: users_list = []
+
+    # User borligini tekshirish
+    user_exists = False
+    for u in users_list:
+        if u['id'] == user.id:
+            user_exists = True
+            break
+    
+    # Yangi user bo'lsa qo'shamiz
+    if not user_exists:
+        new_user = {
+            "id": user.id,
+            "name": user.full_name,
+            "username": f"@{user.username}" if user.username else "Yo'q",
+            "date": get_uz_time()
+        }
+        users_list.append(new_user)
+        with open(USERS_DB, "w") as f:
+            json.dump(users_list, f, indent=4)
+        return len(users_list), True
+    
+    return len(users_list), False
 
 def clean_text(text):
-    """HTML formatini buzadigan belgilarni tozalash"""
     if not text: return ""
     return html.quote(text.replace("_", " ").replace("*", " "))
 
-# --- 1. RESURSLARNI KESHLASH (CONFLICT KILLER) ---
-# Bu funksiya serverda faqat 1 marta ishlaydi.
+# --- 1. RESOURCE CACHING ---
 @st.cache_resource
 def load_resources():
-    # 1. Modelni yuklash
     w_model = whisper.load_model("base")
-    
-    # 2. Botni yuklash
     try:
         TOKEN = st.secrets["BOT_TOKEN"]
         bot_instance = Bot(token=TOKEN)
@@ -64,10 +81,8 @@ def load_resources():
         return None, None, None
 
 model_local, bot, dp = load_resources()
-
 if not bot: st.stop()
 
-# Navbat tizimi uchun qulf
 async_lock = asyncio.Lock()
 waiting_users = 0
 user_data = {}
@@ -83,69 +98,48 @@ def get_main_menu(uid):
     kb.adjust(2)
     return kb.as_markup(resize_keyboard=True)
 
-# --- 3. HANDLERLAR (MANTIQ) ---
+# --- 3. HANDLERLAR ---
 
 @dp.message(Command("start"))
 async def cmd_start(m: types.Message):
     count, is_new = log_user_and_get_count(m.from_user)
+    
     if is_new:
         u_name = f"@{m.from_user.username}" if m.from_user.username else "yo'q"
-        try: await bot.send_message(ADMIN_ID, f"🆕 <b>YANGI USER:</b> {m.from_user.full_name} (ID: {m.from_user.id})", parse_mode="HTML")
+        try: await bot.send_message(ADMIN_ID, f"🆕 <b>YANGI USER:</b> {m.from_user.full_name}\n🆔 {m.from_user.id}\n👤 {u_name}", parse_mode="HTML")
         except: pass
 
     welcome = (
         f"👋 <b>Assalomu alaykum, {m.from_user.first_name}!</b>\n\n"
-        f"🎙 <b>Suxandon AI</b> - Sun'iy intellekt yordamida ishlaydigan professional bot.\n\n"
-        "Men quyidagi ishlarni bajaraman:\n"
-        "✅ <b>Audio Tahlil:</b> Ovozli xabarlarni matnga aylantirish.\n"
-        "✅ <b>Tarjima:</b> 5 xil xalqaro tillarga tarjima qilish.\n"
-        "✅ <b>Formatlash:</b> Matnni vaqt belgilari bilan yoki to'liq holda taqdim etish.\n\n"
-        "👇 <b>Ishni boshlash uchun audio yuboring yoki menyudan tanlang!</b>"
+        f"🎙 <b>Suxandon AI</b> botiga xush kelibsiz!\n\n"
+        "Men audiolarni matnga aylantiraman. Ikkita rejimim bor:\n"
+        "1️⃣ <b>Split:</b> Vaqt belgilari bilan (00:10).\n"
+        "2️⃣ <b>Full Context:</b> Kitob matnidek yaxlit.\n\n"
+        "👇 <b>Boshlash uchun audio yuboring!</b>"
     )
     await m.answer(welcome, reply_markup=get_main_menu(m.from_user.id), parse_mode="HTML")
 
-# --- YORDAM VA SAYT ---
-@dp.message(F.text == "🌐 Saytga kirish")
-async def login_h(m: types.Message):
-    kb = InlineKeyboardBuilder()
-    kb.button(text="🚀 Saytni ochish", url="https://shodlikai.github.io/new_3/dastur.html")
-    await m.answer("Bizning rasmiy veb-saytimizga o'tish uchun tugmani bosing:", reply_markup=kb.as_markup())
-
-@dp.message(F.text == "ℹ️ Yordam")
-async def help_h(m: types.Message):
-    help_text = (
-        "📖 <b>QO'LLANMA:</b>\n\n"
-        "1️⃣ <b>Audio yuboring:</b> Ovozli xabar yoki MP3 fayl (maks 20MB).\n"
-        "2️⃣ <b>Tilni tanlang:</b> Tarjima kerak bo'lsa tilni, bo'lmasa 'Original'ni tanlang.\n"
-        "3️⃣ <b>Format:</b>\n"
-        "   - <i>Split:</i> [00:12] Matn...\n"
-        "   - <i>Full Context:</i> Oddiy matn ko'rinishida.\n"
-        "4️⃣ <b>Natija:</b> Chatda o'qish yoki TXT fayl sifatida yuklab olish.\n\n"
-        "💡 <i>Muammo bo'lsa 'Bog'lanish' bo'limidan yozing.</i>"
-    )
-    await m.answer(help_text, parse_mode="HTML")
-
-# --- FEEDBACK VA REPLY TIZIMI ---
+# --- FEEDBACK ---
 @dp.message(F.text == "👨‍💻 Bog'lanish")
 async def contact_h(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="✍️ Bot orqali yozish", callback_data="msg_to_admin")
     kb.button(text="🌐 Aloqa sahifasi", url="https://shodlikai.github.io/new_3/dastur.html")
     kb.adjust(1)
-    await m.answer("📞 <b>Admin bilan aloqa:</b>\n\nTaklif yoki shikoyatlaringizni to'g'ridan-to'g'ri yuborishingiz mumkin.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    await m.answer("Admin bilan bog'lanish:", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "msg_to_admin")
 async def start_feedback(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.waiting_for_contact_msg)
-    await call.message.answer("📝 <b>Xabaringizni yozib qoldiring:</b>\n(Matn, rasm yoki audio bo'lishi mumkin)")
+    await call.message.answer("📝 <b>Xabarni yozing:</b>")
     await call.answer()
 
 @dp.message(UserStates.waiting_for_contact_msg)
 async def forward_to_admin(m: types.Message, state: FSMContext):
     await state.clear()
     header = f"📩 <b>MUROJAAT:</b>\n👤 User: {m.from_user.full_name}\n🆔 ID: <code>{m.from_user.id}</code>\n\n"
-    await bot.send_message(ADMIN_ID, header + (m.text or "Fayl yuborildi"), parse_mode="HTML")
-    await m.answer("✅ <b>Xabaringiz yetkazildi!</b>\nAdmin javobini shu bot orqali olasiz.")
+    await bot.send_message(ADMIN_ID, header + (m.text or "Fayl"), parse_mode="HTML")
+    await m.answer("✅ Yuborildi.")
 
 @dp.message(F.chat.id == ADMIN_ID, F.reply_to_message)
 async def admin_reply(m: types.Message):
@@ -154,17 +148,26 @@ async def admin_reply(m: types.Message):
         try:
             target_id = re.search(r"🆔 ID: (\d+)", reply).group(1)
             await bot.send_message(chat_id=target_id, text=f"💬 <b>Admin javobi:</b>\n\n{m.text}", parse_mode="HTML")
-            await m.answer("✅ Javob yuborildi.")
+            await m.answer("✅ Javob ketdi.")
         except: await m.answer("❌ ID topilmadi.")
 
-# --- 4. AUDIO TAHLIL VA PROGRESS ---
+@dp.message(F.text == "ℹ️ Yordam")
+async def help_h(m: types.Message):
+    await m.answer("📖 <b>Yordam:</b> Audio yuboring -> Tilni tanlang -> Formatni tanlang.\n⚠️ Maksimal hajm: 20MB.", parse_mode="HTML")
+
+@dp.message(F.text == "🌐 Saytga kirish")
+async def login_h(m: types.Message):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🚀 Saytni ochish", url="https://shodlikai.github.io/new_3/dastur.html")
+    await m.answer("Saytga o'tish:", reply_markup=kb.as_markup())
+
+# --- 4. AUDIO TAHLIL ---
 
 @dp.message(F.audio | F.voice)
 async def handle_audio(m: types.Message):
-    # 20MB check
     f_size = m.audio.file_size if m.audio else m.voice.file_size
     if f_size > 20 * 1024 * 1024:
-        await m.answer("❌ <b>Fayl juda katta!</b>\nIltimos, 20MB dan kichik fayl yuboring.", parse_mode="HTML")
+        await m.answer("❌ Fayl juda katta (Maks 20MB).")
         return
     
     u_h = f"@{m.from_user.username}" if m.from_user.username else m.from_user.full_name
@@ -184,14 +187,14 @@ async def handle_audio(m: types.Message):
 async def lang_callback(call: types.CallbackQuery):
     user_data[call.message.chat.id]['lang'] = call.data.replace("l_", "")
     kb = InlineKeyboardBuilder()
-    kb.button(text="⏱ Split", callback_data="v_split")
-    kb.button(text="📖 Full Context", callback_data="v_full")
-    await call.message.edit_text("📄 <b>Natija ko'rinishini tanlang:</b>", reply_markup=kb.as_markup(), parse_mode="HTML")
+    kb.button(text="⏱ Split (Vaqt bilan)", callback_data="v_split")
+    kb.button(text="📖 Full Context (Butun)", callback_data="v_full")
+    await call.message.edit_text("📄 <b>Ko'rinishni tanlang:</b>", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("v_"))
 async def view_callback(call: types.CallbackQuery):
     if call.message.chat.id not in user_data:
-        await call.message.answer("❌ Ma'lumot eskirgan. Qayta yuboring.")
+        await call.message.answer("❌ Qayta yuboring.")
         return
     user_data[call.message.chat.id]['view'] = call.data.replace("v_", "")
     kb = InlineKeyboardBuilder()
@@ -208,56 +211,59 @@ async def start_process(call: types.CallbackQuery):
     await call.message.delete()
     
     waiting_users += 1
-    # Boshlang'ich xabar
-    wait_msg = await call.message.answer(f"⏳ <b>Navbatda turing:</b> Sizdan oldin {waiting_users-1} kishi bor...", parse_mode="HTML")
+    wait_msg = await call.message.answer(f"⏳ Navbat: {waiting_users-1}")
     
     async with async_lock:
         try:
-            # PROGRESS BAR FUNKSIYASI
-            async def update_progress(percent, text):
-                bar_len = 10
-                filled = int(percent / 10)
-                bar = "🟩" * filled + "⬜" * (bar_len - filled)
-                try: await wait_msg.edit_text(f"🚀 <b>JARAYON KETMOQDA...</b>\n\n{text}\n\n{bar} {percent}%", parse_mode="HTML")
+            async def update_progress(p, txt):
+                bar = "🟩" * (p // 10) + "⬜" * (10 - (p // 10))
+                try: await wait_msg.edit_text(f"🚀 {txt}\n{bar} {p}%", parse_mode="HTML")
                 except: pass
 
-            # 1. Yuklash
-            await update_progress(10, "📥 Audio serverga yuklanmoqda...")
+            await update_progress(10, "Yuklanmoqda...")
             f_path = f"tmp_{chat_id}.mp3"
             file = await bot.get_file(data['fid'])
             await bot.download_file(file.file_path, f_path)
             
-            # 2. Tahlil (Whisper)
-            await update_progress(40, "🧠 Sun'iy intellekt tahlil qilmoqda...")
+            await update_progress(40, "AI Tahlil qilmoqda...")
             res = await asyncio.to_thread(model_local.transcribe, f_path)
             segments = res['segments']
             
-            # 3. Formatlash va Tarjima
-            await update_progress(70, "📝 Matn formatlanmoqda va tarjima qilinmoqda...")
+            await update_progress(70, "Formatlanmoqda...")
             l_code = data.get('lang') if data.get('lang') != "orig" else None
             final_text = ""
 
-            for s in segments:
-                tm = f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}]"
-                txt = clean_text(s['text'].strip())
-                if l_code:
-                    try:
-                        tr = GoogleTranslator(source='auto', target=l_code).translate(txt)
-                        final_text += f"{tm} {txt}\n<i>({clean_text(tr)})</i>\n\n"
-                    except: final_text += f"{tm} {txt}\n\n"
-                else: final_text += f"{tm} {txt}\n\n"
+            if data.get('view') == "full":
+                full_paragraph = ""
+                for s in segments:
+                    text_segment = clean_text(s['text'].strip())
+                    if l_code:
+                        try:
+                            tr = GoogleTranslator(source='auto', target=l_code).translate(text_segment)
+                            full_paragraph += f"{text_segment} ({clean_text(tr)}) "
+                        except: full_paragraph += f"{text_segment} "
+                    else: full_paragraph += f"{text_segment} "
+                final_text = full_paragraph.strip()
+            else:
+                for s in segments:
+                    tm = f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}]"
+                    txt = clean_text(s['text'].strip())
+                    if l_code:
+                        try:
+                            tr = GoogleTranslator(source='auto', target=l_code).translate(txt)
+                            final_text += f"{tm} {txt}\n<i>({clean_text(tr)})</i>\n\n"
+                        except: final_text += f"{tm} {txt}\n\n"
+                    else: final_text += f"{tm} {txt}\n\n"
 
-            # 4. Yuborish
-            await update_progress(100, "✅ Tayyor! Yuborilmoqda...")
+            await update_progress(100, "Tayyor!")
             
-            # Pechat (Imzo)
             creator = data['uname']
             if not creator.startswith('@'): creator = f"@{creator.replace(' ', '_')}"
             imzo = f"\n\n---\n👤 <b>Yaratuvchi:</b> {creator}\n🤖 <b>Bot:</b> @{(await bot.get_me()).username}\n⏰ <b>Vaqt:</b> {get_uz_time()}"
             
             if fmt == "txt":
                 with open(f"res_{chat_id}.txt", "w", encoding="utf-8") as f: f.write(final_text + imzo)
-                await call.message.answer_document(types.FSInputFile(f"res_{chat_id}.txt"), caption="✅ Natija faylda!")
+                await call.message.answer_document(types.FSInputFile(f"res_{chat_id}.txt"), caption="✅ Fayl tayyor!")
                 os.remove(f"res_{chat_id}.txt")
             else:
                 content = final_text + imzo
@@ -268,82 +274,108 @@ async def start_process(call: types.CallbackQuery):
 
             await wait_msg.delete()
             if os.path.exists(f_path): os.remove(f_path)
-
         except Exception as e:
-            await call.message.answer(f"❌ Xatolik yuz berdi: {str(e)}")
+            await call.message.answer(f"❌ Xato: {str(e)}")
         finally:
             waiting_users -= 1
             if chat_id in user_data: del user_data[chat_id]
 
-# --- 5. ADMIN PANEL ---
+# --- 5. ADMIN PANEL (YANGILANGAN LIST) ---
 @dp.message(F.text == "🔑 Admin Panel", F.chat.id == ADMIN_ID)
 async def admin_panel(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="📊 Statistika", callback_data="adm_stats")
+    kb.button(text="📋 Ro'yxat (To'liq)", callback_data="adm_list")
     kb.button(text="📢 Broadcast", callback_data="adm_bc")
     kb.adjust(1)
-    await m.answer("🚀 <b>Admin Panel</b>", reply_markup=kb.as_markup(), parse_mode="HTML")
+    await m.answer("🚀 Admin Panel", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "adm_stats")
 async def adm_stats(call: types.CallbackQuery):
-    count = sum(1 for _ in open(USERS_FILE)) if os.path.exists(USERS_FILE) else 0
+    if os.path.exists(USERS_DB):
+        with open(USERS_DB, "r") as f: users = json.load(f)
+        count = len(users)
+    else: count = 0
     await call.message.answer(f"📊 Jami foydalanuvchilar: {count}")
+
+@dp.callback_query(F.data == "adm_list")
+async def adm_list(call: types.CallbackQuery):
+    if not os.path.exists(USERS_DB):
+        await call.message.answer("❌ Ro'yxat bo'sh.")
+        return
+    
+    with open(USERS_DB, "r") as f:
+        users = json.load(f)
+    
+    if not users:
+        await call.message.answer("❌ Ro'yxat bo'sh.")
+        return
+
+    msg_text = f"📋 <b>FOYDALANUVCHILAR ({len(users)}):</b>\n\n"
+    
+    # Ro'yxatni shakllantirish
+    for i, u in enumerate(users, 1):
+        u_link = u['username']
+        msg_text += (
+            f"<b>{i}. {u['name']}</b>\n"
+            f"   👤 {u_link}\n"
+            f"   🆔 <code>{u['id']}</code>\n"
+            f"   📅 {u['date']}\n"
+            f"-------------------\n"
+        )
+    
+    # Uzun matnni bo'laklab yuborish
+    if len(msg_text) > 4000:
+        for x in range(0, len(msg_text), 4000):
+            await call.message.answer(msg_text[x:x+4000], parse_mode="HTML")
+    else:
+        await call.message.answer(msg_text, parse_mode="HTML")
 
 @dp.callback_query(F.data == "adm_bc")
 async def adm_bc(call: types.CallbackQuery, state: FSMContext):
-    await call.message.answer("📢 Xabarni yuboring (Rasm, Video, Matn):")
+    await call.message.answer("📢 Xabarni yuboring:")
     await state.set_state(AdminStates.waiting_for_bc)
 
 @dp.message(AdminStates.waiting_for_bc)
 async def process_bc(m: types.Message, state: FSMContext):
     await state.clear()
-    ids = open(USERS_FILE).read().splitlines() if os.path.exists(USERS_FILE) else []
-    success = 0
-    status_msg = await m.answer("⏳ Tarqatish boshlandi...")
     
-    for uid in ids:
+    if os.path.exists(USERS_DB):
+        with open(USERS_DB, "r") as f: users = json.load(f)
+    else: users = []
+
+    cnt = 0
+    msg = await m.answer("⏳ Yuborilmoqda...")
+    
+    for u in users:
         try: 
-            await bot.copy_message(chat_id=uid.strip(), from_chat_id=ADMIN_ID, message_id=m.message_id)
-            success += 1
-            await asyncio.sleep(0.05) # Spamdan himoya
+            await bot.copy_message(chat_id=u['id'], from_chat_id=ADMIN_ID, message_id=m.message_id)
+            cnt += 1
+            await asyncio.sleep(0.05)
         except: pass
     
-    await status_msg.edit_text(f"✅ Xabar {success} kishiga yetib bordi.")
+    await msg.edit_text(f"✅ {cnt} kishiga bordi.")
 
-# --- 6. SINGLETON BACKGROUND RUNNER (ENG MUHIM QISM) ---
-# Bu funksiya @st.cache_resource sababli faqat 1 marta ishlaydi
-# Sahifa yangilansa ham qayta ishga tushmaydi!
-
+# --- 6. CACHED RUNNER ---
 @st.cache_resource
 def launch_bot_background():
     async def _runner():
         try:
-            # 1. Eski webhooklarni o'chirish (KONFLIKTNI TUZATISH)
             await bot.delete_webhook(drop_pending_updates=True)
-            print("✅ Webhooklar tozalandi.")
-            
-            # 2. Pollingni boshlash
             await dp.start_polling(bot, handle_signals=False)
-        except Exception as e:
-            print(f"Polling error: {e}")
+        except: pass
 
     def _thread_target():
-        # Yangi event loop ochib, botni o'sha yerda aylantiramiz
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(_runner())
 
-    # Daemon thread (Asosiy dastur o'chsa, bu ham o'chadi)
     t = threading.Thread(target=_thread_target, daemon=True)
     t.start()
     return t
 
-# Botni ishga tushirish (Faqat 1 marta)
 launch_bot_background()
 
-# --- STREAMLIT UI ---
-st.set_page_config(page_title="Suxandon AI Server", page_icon="🤖")
 st.title("🤖 Suxandon AI")
-st.success("Server barqaror ishlamoqda. Telegramdan botni ishlatavering!")
-st.info("Eslatma: Bu sahifani yopib yuborsangiz ham bot ishlashda davom etadi.")
-    
+st.success("Admin Panel: List (Ism + ID + Sana) qo'shildi!")
+            
