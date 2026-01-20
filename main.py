@@ -126,7 +126,7 @@ async def start_feedback(call: types.CallbackQuery, state: FSMContext):
 async def forward_to_admin(m: types.Message, state: FSMContext):
     await state.clear()
     # Adminga yuborish
-    header = f"📩 <b>YANGI MUROJAAT!</b>\n👤 Foydalanuvchi: {m.from_user.full_name}\n🆔 ID: <code>{m.from_user.id}</code>\n\n"
+    header = f"📩 <b>YANGI MUROJAAT!</b>\n👤 Foydalanuvchi: f"@{m.from_user.full_name}\n🆔 ID: <code>{m.from_user.id}</code>\n\n"
     await bot.send_message(ADMIN_ID, header + m.text, parse_mode="HTML")
     await m.answer("✅ <b>Xabaringiz adminga yetkazildi!</b>\nJavobni shu yerda kuting.")
 
