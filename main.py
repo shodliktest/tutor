@@ -228,8 +228,12 @@ async def reboot_h(call: types.CallbackQuery):
 def run_aiogram():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    st.write("🤖 Bot oqimi ishga tushdi...")
-    loop.run_until_complete(dp.start_polling(bot))
+    # Streamlit loglarida ko'rinishi uchun
+    print("🤖 Bot polling rejimida ishga tushmoqda...") 
+    
+    # MUHIM: handle_signals=False qo'shildi
+    loop.run_until_complete(dp.start_polling(bot, handle_signals=False))
+
 
 if "bot_thread_started" not in st.session_state:
     st.session_state.bot_thread_started = True
