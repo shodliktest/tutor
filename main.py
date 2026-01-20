@@ -9,6 +9,8 @@ from datetime import datetime
 import streamlit as st
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 import whisper
@@ -20,16 +22,17 @@ ADMIN_ID = 1416457518
 USERS_FILE = "bot_users_list.txt"
 uz_tz = pytz.timezone('Asia/Tashkent')
 
+class AdminStates(StatesGroup):
+    waiting_for_bc = State()
+
 def get_uz_time():
-    return datetime.now(uz_tz).strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.now(uz_tz).strftime('%H:%M:%S')
 
 def log_user_and_get_count(user: types.User):
-    """Foydalanuvchini bazaga qo'shish va tartib raqamini olish"""
     uid = user.id
     user_list = []
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, "r", encoding="utf-8") as f: user_list = f.readlines()
-    
     exists = any(str(uid) in line for line in user_list)
     if not exists:
         count = len(user_list) + 1
@@ -38,12 +41,12 @@ def log_user_and_get_count(user: types.User):
         return count, True
     return len(user_list), False
 
-# --- 1. BOT VA AI SOZLAMALARI ---
+# --- 1. GLOBAL SOZLAMALAR ---
 try:
     BOT_TOKEN = st.secrets["BOT_TOKEN"]
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except:
-    st.error("Secrets (BOT_TOKEN / GROQ_API_KEY) topilmadi!")
+    st.error("Secrets sozlanmagan!")
     st.stop()
 
 bot = Bot(token=BOT_TOKEN)
@@ -71,10 +74,8 @@ def get_main_menu(uid):
     kb.adjust(2)
     return kb.as_markup(resize_keyboard=True)
 
-# --- 3. FORMATLASH FUNKSIYALARI ---
-
-def smart_format_groq(text, lang_code=None):
-    """Groq uchun paragraflar va xavfsiz italyancha tarjima"""
+# --- 3. FORMATLASH (FAQAT GROQ UCHUN) ---
+def format_smart_context(text, lang_code=None):
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     res = "📝 **AQLLI TAHLIL (GROQ)**\n\n"
     para = ""
@@ -82,7 +83,7 @@ def smart_format_groq(text, lang_code=None):
         if lang_code:
             try:
                 tr = GoogleTranslator(source='auto', target=lang_code).translate(s)
-                # Markdown xatoligini oldini olish uchun '_' ni tozalaymiz
+                # Markdown xatosini oldini olish uchun '_' ni tozalaymiz
                 tr_safe = tr.replace('_', ' ')
                 s = f"{s} _({tr_safe})_"
             except: pass
@@ -93,7 +94,7 @@ def smart_format_groq(text, lang_code=None):
     if para: res += "    " + para.strip()
     return res
 
-# --- 4. BOT HANDLERLARI ---
+# --- 4. HANDLERLAR ---
 
 @dp.message(Command("start"))
 async def cmd_start(m: types.Message):
@@ -103,7 +104,7 @@ async def cmd_start(m: types.Message):
         except: pass
     user_settings[m.chat.id] = user_settings.get(m.chat.id, "groq")
     await m.answer(f"👋 **Assalomu alaykum!**\nSiz botimizning **{count}-foydalanuvchisiz!**", 
-                   reply_markup=get_main_menu(m.from_user.id), parse_mode="Markdown")
+                   reply_markup=get_main_menu(m.from_user.id))
 
 @dp.message(F.text == "⚡ Groq Rejimi")
 async def set_groq(m: types.Message):
@@ -116,7 +117,7 @@ async def set_whisper(m: types.Message):
     await m.answer("✅ **Whisper Rejimi tanlandi!**")
 
 @dp.message(F.audio | F.voice)
-async def handle_audio_voice(m: types.Message):
+async def handle_audio(m: types.Message):
     f_size = m.audio.file_size if m.audio else m.voice.file_size
     if f_size > 25 * 1024 * 1024:
         await m.answer("❌ Fayl juda katta (Maks 25MB).")
@@ -125,15 +126,15 @@ async def handle_audio_voice(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="🇺🇿 O'zbek", callback_data="l_uz")
     kb.button(text="📄 Original", callback_data="l_orig")
-    await m.answer("🌍 **Tilni tanlang:**", reply_markup=kb.as_markup())
+    await m.answer("🌍 **Tarjima tilini tanlang:**", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("l_"))
 async def lang_callback(call: types.CallbackQuery):
     user_data[call.message.chat.id]['lang'] = call.data.replace("l_", "")
     kb = InlineKeyboardBuilder()
-    kb.button(text="⏱ Split (Vaqt bilan)", callback_data="v_split")
-    kb.button(text="📖 Full (Butun matn)", callback_data="v_full")
-    await call.message.edit_text("📄 **Ko'rinishni tanlang:**", reply_markup=kb.as_markup())
+    kb.button(text="⏱ Split", callback_data="v_split")
+    kb.button(text="📖 Full", callback_data="v_full")
+    await call.message.edit_text("📄 **Ko'rinish:**", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("v_"))
 async def view_callback(call: types.CallbackQuery):
@@ -141,7 +142,7 @@ async def view_callback(call: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.button(text="💬 Chat", callback_data="f_chat")
     kb.button(text="📁 TXT", callback_data="f_txt")
-    await call.message.edit_text("💾 **Formatni tanlang:**", reply_markup=kb.as_markup())
+    await call.message.edit_text("💾 **Format:**", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("f_"))
 async def start_processing(call: types.CallbackQuery):
@@ -155,32 +156,31 @@ async def start_processing(call: types.CallbackQuery):
     waiting_users += 1
     wait_msg = await call.message.answer(f"⏳ Navbat: {waiting_users-1}\nRejim: {mode.upper()}")
     
-    async with async_lock: # NAVBAT TIZIMI
+    async with async_lock:
         try:
             async def progress(p, status):
                 bar = "▓" * (p // 10) + "░" * (10 - (p // 10))
                 try: await wait_msg.edit_text(f"🛰 **REJIM: {mode.upper()}**\n\n{status}\n\n📊 {p}%\n{bar}")
                 except: pass
 
-            await progress(10, "📥 Fayl yuklanmoqda...")
-            f_path = f"t_{chat_id}.mp3"
+            await progress(10, "📥 Yuklanmoqda...")
+            f_path = f"tmp_{chat_id}.mp3"
             file = await bot.get_file(data['fid'])
             await bot.download_file(file.file_path, f_path)
             
             await progress(50, "🧠 AI tahlil qilmoqda...")
             
-            # MA'LUMOTLARNI OLISH (Mismatch hal qilindi)
             if mode == "groq":
                 with open(f_path, "rb") as f:
                     res = client_groq.audio.transcriptions.create(
                         file=(f_path, f.read()), model="whisper-large-v3-turbo", response_format="verbose_json"
                     )
                 segments = res.segments
-                def get_s_data(s): return s.start, s.text
+                def get_s_data(s): return s.start, s.text # Groq ob'ekt qaytaradi
             else:
                 res = model_local.transcribe(f_path)
                 segments = res['segments']
-                def get_s_data(s): return s['start'], s['text']
+                def get_s_data(s): return s['start'], s['text'] # Whisper dict qaytaradi
 
             await progress(90, "✍️ Formatlanmoqda...")
             l_code = data.get('lang') if data.get('lang') != "orig" else None
@@ -188,7 +188,7 @@ async def start_processing(call: types.CallbackQuery):
 
             if data['view'] == "full" and mode == "groq":
                 raw = " ".join([get_s_data(s)[1].strip() for s in segments])
-                final_text = smart_format_groq(raw, l_code)
+                final_text = format_smart_context(raw, l_code)
             else:
                 for s in segments:
                     s_start, s_text = get_s_data(s)
@@ -199,23 +199,20 @@ async def start_processing(call: types.CallbackQuery):
                             tr = GoogleTranslator(source='auto', target=l_code).translate(txt)
                             final_text += f"{tm} {txt}\n _({tr.replace('_', ' ')})_\n\n"
                         except: final_text += f"{tm} {txt}\n\n"
-                    else:
-                        final_text += f"{tm} {txt}\n\n"
+                    else: final_text += f"{tm} {txt}\n\n"
 
-            imzo = f"\n---\n👤 **Dasturchi:** @Otavaliyev_M\n🤖 **Bot:** @{(await bot.get_me()).username}\n⏰ **Vaqt:** {get_uz_time()}"
+            imzo = f"\n---\n👤 **Dasturchi:** @Otavaliyev_M\n⏰ **Vaqt:** {get_uz_time()}"
             
             if fmt == "txt":
                 with open(f"r_{chat_id}.txt", "w", encoding="utf-8") as f: f.write(final_text + imzo)
-                await call.message.answer_document(types.FSInputFile(f"r_{chat_id}.txt"), caption="✅ Natija tayyor!")
+                await call.message.answer_document(types.FSInputFile(f"r_{chat_id}.txt"), caption="✅ Tayyor!")
                 os.remove(f"r_{chat_id}.txt")
             else:
-                # Telegram limitiga tekshirish
                 content = final_text + imzo
-                if len(content) > 4096:
+                if len(content) > 4000:
                     for x in range(0, len(content), 4000):
                         await call.message.answer(content[x:x+4000], parse_mode="Markdown")
-                else:
-                    await call.message.answer(content, parse_mode="Markdown")
+                else: await call.message.answer(content, parse_mode="Markdown")
 
             await wait_msg.delete()
             if os.path.exists(f_path): os.remove(f_path)
@@ -229,7 +226,7 @@ async def start_processing(call: types.CallbackQuery):
 def run_aiogram_thread():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    # handle_signals=False -> set_wakeup_fd xatosini tuzatadi
+    # handle_signals=False -> 'set_wakeup_fd' xatosini tuzatadi
     loop.run_until_complete(dp.start_polling(bot, handle_signals=False, skip_updates=True))
 
 if "bot_active" not in st.session_state:
@@ -237,5 +234,5 @@ if "bot_active" not in st.session_state:
     threading.Thread(target=run_aiogram_thread, daemon=True).start()
 
 st.title("🤖 Neon Hybrid Bot Server (Aiogram Fix)")
-st.success("Barcha tizimlar barqaror va xatoliklarsiz ishlamoqda!")
+st.success("Tizim barqaror holatda ishlamoqda!")
     
