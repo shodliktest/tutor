@@ -1,6 +1,6 @@
 streamlit
 aiogram
-openai-whisper
+faster-whisper
 groq
 deep_translator
 pytz
