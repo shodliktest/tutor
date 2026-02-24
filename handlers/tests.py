@@ -1,7 +1,8 @@
 """
 🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - PRO VERSIYA)
-Endi har bir savoldan keyin Tushuntirish (Izoh) chiqarib beradi va
-'Tushundim' bosilgandan keyin keyingi savolga o'tadi.
+Agar izoh bo'lmasa, avtomatik ravishda keyingi savolga o'tkazib yuboradigan
+aqlli tushuntirish (explanation) mexanizmi bilan.
+Hech narsa qisqartirilmadi.
 """
 import time
 import io
@@ -11,12 +12,12 @@ from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from firebase.db import get_db, get_test, get_user_results, save_result, get_user
-from utils.scoring import calculate_score, format_result_message, _check_answer # _check_answer ni qo'shdik
+from utils.scoring import calculate_score, format_result_message, _check_answer
 from utils.states import TestSolving
 from keyboards.keyboards import (
     subjects_keyboard, tests_list_keyboard, test_info_keyboard,
     result_keyboard, multiple_choice_keyboard, true_false_keyboard,
-    multi_select_keyboard, finish_test_keyboard, explanation_keyboard # YANGI KLAVIATURA
+    multi_select_keyboard, finish_test_keyboard, explanation_keyboard
 )
 
 logger = logging.getLogger(__name__)
@@ -149,20 +150,31 @@ async def send_next_question(message: Message, state: FSMContext):
 
 
 # ---------------------------------------------------------
-# INTERAKTIV TUSHUNTIRISH YASOVCHI FUNKSIYA (YANGI)
+# INTERAKTIV TUSHUNTIRISH YASOVCHI FUNKSIYA (AQLLI VERSIYA)
 # ---------------------------------------------------------
 async def show_explanation(message_obj, state: FSMContext, q_idx: int, user_ans, is_edit=True):
     state_data = await state.get_data()
     q = state_data["questions"][q_idx]
     
+    explanation = q.get("explanation", "Izoh kiritilmagan.").strip()
+    
+    # 💡 AGAR IZOH BO'LMASA -> TO'G'RIDAN-TO'G'RI KEYINGI SAVOLGA O'TISH
+    if explanation in ["Izoh kiritilmagan.", "", "Izoh yo'q", "Noma'lum"]:
+        await state.update_data(current_index=q_idx + 1)
+        if is_edit:
+            try:
+                await message_obj.delete()
+            except: pass
+        await send_next_question(message_obj, state)
+        return
+
+    # Agar izoh bo'lsa, uni ko'rsatish mantiqi:
     is_correct, _ = _check_answer(q, user_ans)
     status_emoji = "✅ <b>TO'G'RI JAVOB!</b>" if is_correct else "❌ <b>XATO JAVOB!</b>"
     
     corr_ans = q.get("correct", "Noma'lum")
     if isinstance(corr_ans, list): corr_ans = ", ".join(corr_ans)
     elif isinstance(corr_ans, dict): corr_ans = ", ".join([f"{k}-{v}" for k,v in corr_ans.items()])
-    
-    explanation = q.get("explanation", "Izoh kiritilmagan.")
     
     text = (
         f"{status_emoji}\n\n"
@@ -171,7 +183,6 @@ async def show_explanation(message_obj, state: FSMContext, q_idx: int, user_ans,
         f"💡 <b>Tushuntirish:</b>\n{explanation}"
     )
     
-    # Keyingi savolga o'tish uchun indeksni oshiramiz, lekin hali savolni yubormaymiz
     await state.update_data(current_index=q_idx + 1)
     
     if is_edit:
@@ -209,7 +220,7 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_reply_markup(reply_markup=kb)
         return
 
-    # Multi-select dagi 'Keyingi' tugmasi bosilganda ham tushuntirish chiqadi
+    # Multi-select dagi 'Keyingi' tugmasi bosilganda ham tushuntirish ishlaydi
     if data.startswith("next_"):
         parts = data.split("_")
         q_idx = int(parts[1])
@@ -224,7 +235,6 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
         user_answers[str(q_idx)] = ans
         await state.update_data(user_answers=user_answers)
         
-        # Javobni yozgach, birdaniga tushuntirishni chiqaramiz
         await show_explanation(callback.message, state, q_idx, ans, is_edit=True)
 
 @router.message(F.text, TestSolving.text_answer)
@@ -243,7 +253,6 @@ async def handle_text_answer(message: Message, state: FSMContext):
         if last_msg_id: await message.bot.delete_message(chat_id=message.chat.id, message_id=last_msg_id)
     except: pass
     
-    # Yozma testdan keyin tushuntirish chiqarish (Yangi xabar sifatida)
     await show_explanation(message, state, idx, ans, is_edit=False)
 
 @router.callback_query(TestSolving.text_answer, F.data == "finish_test")
@@ -253,12 +262,11 @@ async def handle_finish_from_text_state(callback: CallbackQuery, state: FSMConte
     await finish_test_process(callback.message, state, state_data)
 
 # ---------------------------------------------------------
-# 'TUSHUNDIM' TUGMASINI USHLOVCHI HANDLER (YANGI)
+# 'TUSHUNDIM' TUGMASINI USHLOVCHI HANDLER
 # ---------------------------------------------------------
 @router.callback_query(TestSolving.viewing_explanation, F.data.startswith("go_next_"))
 async def go_next_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
-    # current_index allaqachon show_explanation ichida +1 bo'lgan edi
     await send_next_question(callback.message, state)
 
 @router.callback_query(TestSolving.viewing_explanation, F.data == "finish_test")
@@ -295,7 +303,7 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
 
 
 # ==========================================================
-# 6. TAHLIL VA IZOHLAR (TXT)
+# 6. TAHLIL VA IZOHLAR (TXT FAYL)
 # ==========================================================
 @router.callback_query(F.data.startswith("analysis_"))
 async def analysis_handler(callback: CallbackQuery):
