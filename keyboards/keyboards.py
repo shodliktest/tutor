@@ -154,4 +154,11 @@ def multi_select_keyboard(options: list, question_index: int, selected: list = N
         InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"next_{question_index}"),
         InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test")
     )
+
+    def explanation_keyboard(question_index: int) -> InlineKeyboardMarkup:
+    """Tushuntirish chiqqandan so'ng 'Tushundim' tugmasi"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="💡 Tushundim (Keyingi ➡️)", callback_data=f"go_next_{question_index}"))
+    builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    return builder.as_markup()
     return builder.as_markup()
