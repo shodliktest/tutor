@@ -278,7 +278,7 @@ elif page == "⚙️ Sozlamalar":
     st.markdown("""
     **1-qadam:** [share.streamlit.io](https://share.streamlit.io) ga kiring
 
-    **2-qadam:** Ilovangizni toping → **⋮ (3 nuqta)** → **Settings**
+    **2-qadam:** Ilovangizni toping -> **⋮ (3 nuqta)** -> **Settings**
 
     **3-qadam:** **Secrets** bo'limiga o'ting
 
@@ -301,8 +301,8 @@ app_id              = "1:123456789012:web:abc..."
 database_url        = ""
 
 # ── Firebase Service Account ─────────────
-# Firebase Console → Project Settings →
-# Service accounts → Generate new private key
+# Firebase Console -> Project Settings ->
+# Service accounts -> Generate new private key
 [firebase_sa]
 type                        = "service_account"
 project_id                  = "your-project-id"
@@ -334,35 +334,4 @@ universe_domain             = "googleapis.com"
     }
     for k, v in checks.items():
         st.write(f"{'✅' if v else '❌'} `{k}`")
-nts → Generate new private key
-[firebase_sa]
-type                        = "service_account"
-project_id                  = "your-project-id"
-private_key_id              = "abc123def456..."
-private_key                 = "-----BEGIN RSA PRIVATE KEY-----\\nMIIE...\\n-----END RSA PRIVATE KEY-----\\n"
-client_email                = "firebase-adminsdk-xxx@your-app.iam.gserviceaccount.com"
-client_id                   = "123456789012345678901"
-auth_uri                    = "https://accounts.google.com/o/oauth2/auth"
-token_uri                   = "https://oauth2.googleapis.com/token"
-auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-client_x509_cert_url        = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxx%40your-app.iam.gserviceaccount.com"
-universe_domain             = "googleapis.com"
-    """, language="toml")
-
-    st.warning("""
-    ⚠️ **Muhim eslatmalar:**
-    - `private_key` dagi yangi qatorlar `\\n` sifatida yozilishi kerak
-    - Barcha qiymatlar qo'shtirnoq ichida bo'lishi kerak
-    - Faylni hech qachon GitHub ga yuklamang!
-    """)
-
-    st.divider()
-    st.subheader("🔍 Joriy secrets holati")
-    checks = {
-        "BOT_TOKEN":     bool(st.secrets.get("BOT_TOKEN")),
-        "ADMIN_IDS":     bool(st.secrets.get("ADMIN_IDS")),
-        "[firebase]":    "firebase" in st.secrets,
-        "[firebase_sa]": "firebase_sa" in st.secrets,
-    }
-    for k, v in checks.items():
-        st.write(f"{'✅' if v else '❌'} `{k}`")
+                    
