@@ -1,191 +1,227 @@
 """
-👨‍💼 ADMIN PANEL HANDLER
+👨‍💼 ADMIN PANEL HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
+Imkoniyatlar: Statistika, Xabar tarqatish, Bloklash, Test o'chirish
 """
 import logging
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes
-from firebase.db import get_all_users, get_all_tests, block_user, delete_test, get_db
+import asyncio
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+
+from firebase.db import get_all_users, get_all_tests, get_db
 from keyboards.keyboards import admin_keyboard
+from utils.states import AdminPanel
 from config import ADMIN_IDS
 
 logger = logging.getLogger(__name__)
-
+router = Router()
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-
-async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin panel"""
-    user_id = update.effective_user.id
-    
-    if not is_admin(user_id):
-        if update.callback_query:
-            await update.callback_query.answer("🚫 Ruxsat yo'q!", show_alert=True)
-        else:
-            await update.message.reply_text("🚫 Siz admin emassiz!")
+# ==========================================================
+# 1. ADMIN PANEL ASOSIY MENYUSI
+# ==========================================================
+@router.callback_query(F.data == "admin_panel")
+async def admin_panel_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    if not is_admin(callback.from_user.id):
+        await callback.answer("🚫 Sizda bu bo'limga kirish huquqi yo'q!", show_alert=True)
         return
-    
-    query = update.callback_query
-    
-    if query:
-        await query.answer()
-        data = query.data
         
-        if data == "admin_users":
-            await _show_users(query)
-        elif data == "admin_tests":
-            await _show_tests(query)
-        elif data == "admin_stats":
-            await _show_stats(query)
-        elif data == "admin_broadcast":
-            await _broadcast_prompt(query, context)
-        elif data.startswith("admin_block_"):
-            uid = int(data.replace("admin_block_", ""))
-            block_user(uid, True)
-            await query.answer("✅ Foydalanuvchi bloklandi!", show_alert=True)
-        elif data.startswith("admin_unblock_"):
-            uid = int(data.replace("admin_unblock_", ""))
-            block_user(uid, False)
-            await query.answer("✅ Blok olib tashlandi!", show_alert=True)
-        elif data.startswith("admin_del_test_"):
-            test_id = data.replace("admin_del_test_", "")
-            delete_test(test_id)
-            await query.answer("✅ Test o'chirildi!", show_alert=True)
-            await _show_tests(query)
-        else:
-            await _show_main(query)
-    else:
-        await _show_main_message(update.message)
-
-
-async def _show_main(query):
-    """Asosiy admin sahifasi"""
-    db = get_db()
-    
-    users_count = len(list(db.collection("users").stream()))
-    tests_count = len(list(db.collection("tests").where("is_active", "==", True).stream()))
-    results_count = len(list(db.collection("results").stream()))
-    
-    text = f"""
-👨‍💼 <b>ADMIN PANEL</b>
-
-📊 <b>Umumiy statistika:</b>
-👥 Foydalanuvchilar: <b>{users_count}</b>
-📋 Testlar: <b>{tests_count}</b>
-📈 Natijalар: <b>{results_count}</b>
-
-Quyidagi bo'limlarni boshqaring:
-"""
-    
-    await query.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="HTML")
-
-
-async def _show_main_message(message):
-    """Admin sahifasini xabar sifatida yuborish"""
-    text = "👨‍💼 <b>ADMIN PANEL</b>\n\nQuyidagi bo'limlarni boshqaring:"
-    await message.reply_text(text, reply_markup=admin_keyboard(), parse_mode="HTML")
-
-
-async def _show_users(query):
-    """Foydalanuvchilar ro'yxati"""
-    users = get_all_users(limit=20)
-    
-    text = f"👥 <b>FOYDALANUVCHILAR</b> ({len(users)} ta)\n\n"
-    keyboard = []
-    
-    for user in users[:15]:
-        name = user.get("name", "Noma'lum")[:20]
-        tests = user.get("total_tests", 0)
-        blocked = "🚫" if user.get("is_blocked") else "✅"
-        uid = user.get("telegram_id")
-        
-        text += f"{blocked} <b>{name}</b> — {tests} ta test\n"
-        
-        block_label = "Blokdan chiqarish" if user.get("is_blocked") else "Bloklash"
-        block_cb = f"admin_unblock_{uid}" if user.get("is_blocked") else f"admin_block_{uid}"
-        
-        keyboard.append([
-            InlineKeyboardButton(f"{blocked} {name}", callback_data=f"user_info_{uid}"),
-            InlineKeyboardButton("🚫" if not user.get("is_blocked") else "✅", callback_data=block_cb)
-        ])
-    
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="admin_panel")])
-    
-    await query.message.edit_text(
-        text, 
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
+    await callback.answer()
+    text = (
+        "👨‍💼 <b>ADMINISTRATOR PANELI</b>\n\n"
+        "Tizimni to'liq boshqarish uchun quyidagi bo'limlardan birini tanlang:\n"
+        "• Barcha ma'lumotlar real vaqt rejimida (Firebase) olinadi."
     )
+    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="HTML")
 
 
-async def _show_tests(query):
-    """Testlar ro'yxati"""
-    tests = get_all_tests(limit=20)
+# ==========================================================
+# 2. STATISTIKA VA TAHLIL
+# ==========================================================
+@router.callback_query(F.data == "admin_stats")
+async def show_stats_handler(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id): return
+    await callback.answer("📊 Statistika hisoblanmoqda...")
     
-    text = f"📋 <b>TESTLAR</b> ({len(tests)} ta)\n\n"
-    keyboard = []
-    
-    for test in tests[:15]:
-        title = test.get("title", "Nomsiz")[:25]
-        attempts = test.get("total_attempts", 0)
-        avg = test.get("avg_score", 0)
-        test_id = test.get("test_id")
-        
-        text += f"📝 <b>{title}</b> — {attempts} ta urinish, {avg:.0f}% o'rtacha\n"
-        
-        keyboard.append([
-            InlineKeyboardButton(f"📝 {title}", callback_data=f"test_info_{test_id}"),
-            InlineKeyboardButton("🗑", callback_data=f"admin_del_test_{test_id}")
-        ])
-    
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="admin_panel")])
-    
-    await query.message.edit_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
-
-
-async def _show_stats(query):
-    """Statistika"""
     db = get_db()
+    users_ref = list(db.collection("users").stream())
+    tests_ref = list(db.collection("tests").stream())
+    results_ref = list(db.collection("results").stream())
     
-    results = list(db.collection("results").stream())
-    total_results = len(results)
+    total_users = len(users_ref)
+    total_tests = len(tests_ref)
+    total_results = len(results_ref)
+    
+    avg_score = 0
+    pass_rate = 0
     
     if total_results > 0:
-        scores = [r.to_dict().get("percentage", 0) for r in results]
+        scores = [r.to_dict().get("percentage", 0) for r in results_ref]
         avg_score = sum(scores) / len(scores)
         passed = sum(1 for s in scores if s >= 60)
-        pass_rate = (passed / total_results * 100) if total_results else 0
-    else:
-        avg_score = 0
-        pass_rate = 0
-    
+        pass_rate = (passed / total_results) * 100
+
     text = f"""
-📊 <b>STATISTIKA</b>
+📈 <b>TIZIMNING GLOBAL STATISTIKASI</b>
 
-━━━━━━━━━━━━━━━
-📈 Jami natijalар: <b>{total_results}</b>
-📊 O'rtacha natija: <b>{avg_score:.1f}%</b>
-✅ O'tish foizi: <b>{pass_rate:.1f}%</b>
-━━━━━━━━━━━━━━━
+👥 <b>Foydalanuvchilar:</b>
+• Jami ro'yxatdan o'tganlar: <b>{total_users}</b> ta
+
+📋 <b>Testlar Bazasi:</b>
+• Yaratilgan jami testlar: <b>{total_tests}</b> ta
+
+📊 <b>Natijalar (Ishlangan testlar):</b>
+• Jami urinishlar: <b>{total_results}</b> marta
+• O'rtacha o'zlashtirish: <b>{avg_score:.1f}%</b>
+• Muvaffaqiyatli o'tish (60%+): <b>{pass_rate:.1f}%</b>
 """
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
     
-    keyboard = [[InlineKeyboardButton("◀️ Orqaga", callback_data="admin_panel")]]
-    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 
-async def _broadcast_prompt(query, context):
-    """Barcha foydalanuvchilarga xabar yuborish"""
-    context.user_data["admin_action"] = "broadcast"
+# ==========================================================
+# 3. XABAR TARQATISH (BROADCAST)
+# ==========================================================
+@router.callback_query(F.data == "admin_broadcast")
+async def broadcast_prompt_handler(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id): return
+    await callback.answer()
     
-    await query.message.edit_text(
-        "📢 <b>XABAR YUBORISH</b>\n\n"
-        "Yubormoqchi bo'lgan xabaringizni yozing.\n"
-        "Barcha foydalanuvchilarga yuboriladi.\n\n"
-        "/cancel — bekor qilish",
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel"))
+    
+    await callback.message.edit_text(
+        "📢 <b>XABAR TARQATISH</b>\n\n"
+        "Barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni yozing (rasm yoki video ham mumkin):",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state(AdminPanel.broadcast)
+
+@router.message(AdminPanel.broadcast)
+async def send_broadcast_message(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id): return
+    
+    status_msg = await message.answer("⏳ Xabar tarqatish boshlandi. Iltimos kuting...")
+    
+    db = get_db()
+    users = list(db.collection("users").stream())
+    
+    success_count = 0
+    fail_count = 0
+    
+    for user_doc in users:
+        uid = user_doc.id
+        try:
+            # Xabarni nusxalab yuborish (forward emas, copy)
+            await message.send_copy(chat_id=uid)
+            success_count += 1
+        except TelegramForbiddenError:
+            # User botni bloklagan bo'lsa, bazada is_blocked = True qilamiz
+            db.collection("users").document(uid).update({"is_blocked": True})
+            fail_count += 1
+        except Exception:
+            fail_count += 1
+            
+        # Telegram API limitlariga tushmaslik uchun (Max 30 ta xabar / soniya)
+        await asyncio.sleep(0.05)
+        
+    await state.clear()
+    await status_msg.edit_text(
+        f"✅ <b>XABAR TARQATISH YAKUNLANDI!</b>\n\n"
+        f"📩 Muvaffaqiyatli yuborildi: <b>{success_count}</b> ta\n"
+        f"❌ Yuborilmadi (Bloklaganlar): <b>{fail_count}</b> ta\n",
         parse_mode="HTML"
     )
+
+
+# ==========================================================
+# 4. FOYDALANUVCHILARNI BOSHQRISH VA BLOKLASH
+# ==========================================================
+@router.callback_query(F.data == "admin_users")
+async def show_users_prompt(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id): return
+    await callback.answer()
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
+    
+    await callback.message.edit_text(
+        "👥 <b>FOYDALANUVCHINI BLOKLASH / OCHISH</b>\n\n"
+        "Iltimos, bloklamoqchi yoki blokdan chiqarmoqchi bo'lgan foydalanuvchining <b>Telegram ID</b> raqamini yozib yuboring:",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state(AdminPanel.block_user)
+
+@router.message(AdminPanel.block_user)
+async def block_user_action(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id): return
+    target_id = message.text.strip()
+    
+    if not target_id.isdigit():
+        await message.answer("❌ Telegram ID faqat raqamlardan iborat bo'lishi kerak!")
+        return
+        
+    db = get_db()
+    user_ref = db.collection("users").document(target_id)
+    doc = user_ref.get()
+    
+    if not doc.exists:
+        await message.answer("❌ Bunday ID ga ega foydalanuvchi bazada topilmadi.")
+        return
+        
+    current_status = doc.to_dict().get("is_blocked", False)
+    new_status = not current_status
+    user_ref.update({"is_blocked": new_status})
+    
+    action_text = "🔒 BLOKLANDI" if new_status else "🔓 BLOKDAN CHIQARILDI"
+    await message.answer(f"✅ Foydalanuvchi (ID: {target_id}) holati o'zgardi:\n<b>{action_text}</b>")
+    await state.clear()
+
+
+# ==========================================================
+# 5. TESTLARNI BOSHQRISH VA O'CHIRISH
+# ==========================================================
+@router.callback_query(F.data == "admin_delete_test")
+async def delete_test_prompt(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id): return
+    await callback.answer()
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
+    
+    await callback.message.edit_text(
+        "🗑 <b>TESTNI O'CHIRISH</b>\n\n"
+        "O'chirmoqchi bo'lgan testning <b>Test ID</b> sini (kodi) yozib yuboring:",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state(AdminPanel.delete_test)
+
+@router.message(AdminPanel.delete_test)
+async def delete_test_action(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id): return
+    test_id = message.text.strip()
+    
+    db = get_db()
+    test_ref = db.collection("tests").document(test_id)
+    
+    if not test_ref.get().exists:
+        await message.answer("❌ Bunday ID ga ega test topilmadi.")
+        return
+        
+    test_ref.delete()
+    await message.answer(f"✅ Test (ID: {test_id}) bazadan butunlay o'chirildi.")
+    await state.clear()
