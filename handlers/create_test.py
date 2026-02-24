@@ -1,15 +1,16 @@
 """
 ➕ TEST YARATISH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Bosqichlar: Fayl -> Fan -> Qiyinlik -> Vaqt -> O'tish foizi -> Urinishlar -> Maxfiylik -> Saqlash
+Bosqichlar: Fayl -> Fan -> Qiyinlik -> Vaqt -> O'tish foizi -> Urinishlar -> Maxfiylik -> Saqlash va Kalit berish
 """
 import os
 import logging
 import uuid
 import tempfile
+import io
 from datetime import datetime, timezone
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from utils.parser import parse_file
@@ -34,9 +35,6 @@ SAMPLE_FILES = {
     "all":             ("barcha_turlar_namuna.txt",    "📦 Barcha test turlari"),
 }
 
-# ==========================================
-# 1-BOSQICH: BOSHLASH VA NAMUNALAR
-# ==========================================
 @router.callback_query(F.data == "create_test")
 async def create_test_start(callback: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -84,9 +82,6 @@ async def send_sample_file(callback: CallbackQuery):
     else:
         await callback.message.answer("❌ Fayl topilmadi. Tizim administratoriga murojaat qiling.")
 
-# ==========================================
-# 2-BOSQICH: FAYLNI O'QISH VA PARSING
-# ==========================================
 @router.message(F.document, CreateTest.upload_file)
 async def upload_file_handler(message: Message, state: FSMContext):
     doc = message.document
@@ -124,9 +119,6 @@ async def upload_file_handler(message: Message, state: FSMContext):
         logger.error(f"Faylni o'qishda xato: {e}")
         await status_msg.edit_text("❌ Faylni o'qishda xatolik yuz berdi. Iltimos, namunadagi formatdan foydalaning.")
 
-# ==========================================
-# 3-BOSQICH: FAN NOMI
-# ==========================================
 @router.message(F.text, CreateTest.set_subject)
 async def set_subject_handler(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
@@ -136,9 +128,6 @@ async def set_subject_handler(message: Message, state: FSMContext):
     )
     await state.set_state(CreateTest.set_difficulty)
 
-# ==========================================
-# 4-BOSQICH: QIYINLIK DARAJASI
-# ==========================================
 @router.callback_query(F.data.startswith("diff_"), CreateTest.set_difficulty)
 async def set_difficulty_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -152,9 +141,6 @@ async def set_difficulty_handler(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(CreateTest.set_time_limit)
 
-# ==========================================
-# 5-BOSQICH: VAQT LIMITI
-# ==========================================
 @router.message(F.text, CreateTest.set_time_limit)
 async def set_time_limit_handler(message: Message, state: FSMContext):
     if not message.text.isdigit():
@@ -166,13 +152,10 @@ async def set_time_limit_handler(message: Message, state: FSMContext):
     await message.answer(
         "✅ Vaqt belgilandi.\n\n"
         "🎯 <b>Testdan muvaffaqiyatli o'tish foizini kiriting (0-100):</b>\n"
-        "<i>(Masalan: 60) Foydalanuvchi shu foizni yig'sa Sertifikat oladi.</i>"
+        "<i>(Masalan: 60)</i>"
     )
     await state.set_state(CreateTest.set_passing_score)
 
-# ==========================================
-# 6-BOSQICH: O'TISH FOIZI
-# ==========================================
 @router.message(F.text, CreateTest.set_passing_score)
 async def set_passing_score_handler(message: Message, state: FSMContext):
     if not message.text.isdigit() or not (0 <= int(message.text) <= 100):
@@ -188,9 +171,6 @@ async def set_passing_score_handler(message: Message, state: FSMContext):
     )
     await state.set_state(CreateTest.set_max_attempts)
 
-# ==========================================
-# 7-BOSQICH: URINISHLAR SONI
-# ==========================================
 @router.message(F.text, CreateTest.set_max_attempts)
 async def set_max_attempts_handler(message: Message, state: FSMContext):
     if not message.text.isdigit():
@@ -207,16 +187,14 @@ async def set_max_attempts_handler(message: Message, state: FSMContext):
     )
     await state.set_state(CreateTest.set_visibility)
 
-# ==========================================
-# 8-BOSQICH: MAXFIYLIK VA BAZAGA SAQLASH
-# ==========================================
 @router.callback_query(F.data.startswith("vis_"), CreateTest.set_visibility)
 async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer("⏳ Bazaga saqlanmoqda...")
-    visibility = callback.data.replace("vis_", "") # public, link, private
+    visibility = callback.data.replace("vis_", "")
     
     data = await state.get_data()
     questions = data.get("questions", [])
+    title = data.get("title", "Nomsiz test")
     
     from firebase.config import get_db
     db = get_db()
@@ -224,7 +202,7 @@ async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
     
     new_test = {
         "test_id": test_id,
-        "title": data.get("title", "Nomsiz test"),
+        "title": title,
         "creator_id": callback.from_user.id,
         "difficulty": data.get("difficulty", "medium"),
         "time_limit": data.get("time_limit", 0),
@@ -245,24 +223,47 @@ async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
     builder.row(InlineKeyboardButton(text="🏠 Bosh sahifa", callback_data="main_menu"))
     
     visibility_text = {
-        "public": "🌍 Ommaviy (Katalogda ko'rinadi)",
-        "link": "🔗 Ssilka orqali (Faqat link yuborganlaringiz ko'radi)",
-        "private": "🔒 Shaxsiy (Faqat o'zingiz ko'rasiz)"
+        "public": "🌍 Ommaviy",
+        "link": "🔗 Ssilka orqali",
+        "private": "🔒 Shaxsiy"
     }
+    
+    bot_username = (await callback.bot.me()).username
     
     await callback.message.edit_text(
         f"🎉 <b>TEST MUVAFFAQIYATLI YARATILDI!</b>\n\n"
         f"<b>Test kodi:</b> <code>{test_id}</code>\n"
-        f"<b>Test ssilkasi:</b> <code>https://t.me/{(await callback.bot.me()).username}?start={test_id}</code>\n\n"
+        f"<b>Test ssilkasi:</b> <code>https://t.me/{bot_username}?start={test_id}</code>\n\n"
         f"📊 <b>Ma'lumotlar:</b>\n"
         f"• Savollar: {len(questions)} ta\n"
-        f"• Vaqt: {data.get('time_limit')} daqiqa\n"
-        f"• O'tish: {data.get('passing_score')}%\n"
-        f"• Urinishlar: {data.get('max_attempts')} marta\n"
         f"• Holat: {visibility_text[visibility]}\n\n"
-        f"<i>Ssilkani nusxalab o'quvchilarga yuborishingiz mumkin.</i>",
+        f"<i>Quyida Test kalitlari taqdim etiladi:</i>",
         reply_markup=builder.as_markup()
     )
+
+    # 🔑 JAVOBLAR KALITINI YUBORISH MANTIQI
+    key_text = f"🔑 <b>{title.upper()} - JAVOBLAR KALITI</b>\n\n"
+    for i, q in enumerate(questions):
+        corr = q.get("correct", "Noma'lum")
+        
+        # Javoblar ro'yxat yoki lug'at bo'lsa chiroyli stringga o'tkazish
+        if isinstance(corr, list):
+            corr = ", ".join(corr)
+        elif isinstance(corr, dict):
+            corr = ", ".join([f"{k}-{v}" for k, v in corr.items()])
+            
+        key_text += f"<b>{i+1}-savol:</b> {corr}\n"
+        
+    # Agar kalit juda uzun bo'lsa (Telegram 4096 belgidan oshsa ruxsat bermaydi), fayl qilib tashlaymiz
+    if len(key_text) > 4000:
+        file_obj = io.BytesIO(key_text.encode('utf-8'))
+        doc = BufferedInputFile(file_obj.getvalue(), filename=f"Klit_{test_id}.txt")
+        await callback.message.answer_document(
+            document=doc, 
+            caption="🔑 Test javoblari kaliti (Matn juda uzun bo'lgani uchun fayl shaklida yuborildi)"
+        )
+    else:
+        await callback.message.answer(key_text, parse_mode="HTML")
 
 @router.callback_query(F.data == "cancel_creation")
 async def cancel_handler(callback: CallbackQuery, state: FSMContext):
