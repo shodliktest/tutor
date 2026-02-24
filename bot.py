@@ -1,26 +1,21 @@
 """
-🎓 QUIZ BOT - Professional Test Platformasi
-Author: Otavaliyev.M (SHodlik)
-
-✅ SingletonConfig  — faqat bitta bot instance
-✅ WebhookKiller    — eski webhook o'chiriladi
-✅ Thread-safe      — asyncio loop muammosi yo'q
+🎓 QUIZ BOT
+✅ Conflict-free polling
+✅ Webhook killer
+✅ Thread-safe singleton
 """
-
 import logging
 import asyncio
 import sys
-import os
+import threading
 
-# ── Logging (faqat StreamHandler — Streamlit Cloud da fayl yozib bo'lmaydi) ──
 logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    format="%(asctime)s | %(levelname)s | %(message)s",
     level=logging.INFO,
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
-# ── Import ────────────────────────────────────────────────────────────────────
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -33,10 +28,7 @@ from handlers.tests import (
     browse_tests_handler, take_test_handler,
     test_answer_handler, finish_test_handler
 )
-from handlers.create_test import (
-    create_test_start, upload_file_handler,
-    manual_create_handler
-)
+from handlers.create_test import create_test_start, upload_file_handler, manual_create_handler
 from handlers.admin import admin_panel_handler
 from handlers.results import my_results_handler
 from handlers.leaderboard import leaderboard_handler
@@ -44,35 +36,21 @@ from handlers.profile import profile_handler
 from utils.states import *
 from config import BOT_TOKEN
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 1️⃣  SINGLETON — faqat bitta Application instance bo'ladi
-# ══════════════════════════════════════════════════════════════════════════════
-_app_instance: Application | None = None
-
-
-def get_application() -> Application:
-    """
-    Application ni bir marta yaratadi va qayta ishlatadi.
-    Streamlit har sahifa yangilanishida bu funksiyani chaqirsa ham
-    bot qayta-qayta ishga tushmaydi.
-    """
-    global _app_instance
-    if _app_instance is None:
-        _app_instance = _build_application()
-    return _app_instance
+# ── Singleton ─────────────────────────────────────────────
+_lock = threading.Lock()
+_bot_thread: threading.Thread | None = None
+_bot_started = False
 
 
-def _build_application() -> Application:
-    """Application va barcha handlerlarni bir marta qurish"""
+def _build_app() -> Application:
     app = (
         Application.builder()
         .token(BOT_TOKEN)
-        .concurrent_updates(True)   # Thread-safe concurrent updates
+        .concurrent_updates(True)
         .build()
     )
 
-    # ── Asosiy komandalar ─────────────────────────────────
+    # Komandalar
     app.add_handler(CommandHandler("start",       start_handler))
     app.add_handler(CommandHandler("help",        help_handler))
     app.add_handler(CommandHandler("admin",       admin_panel_handler))
@@ -81,11 +59,9 @@ def _build_application() -> Application:
     app.add_handler(CommandHandler("leaderboard", leaderboard_handler))
     app.add_handler(CommandHandler("tests",       browse_tests_handler))
 
-    # ── Test ishlash conversation ─────────────────────────
+    # Test ishlash
     test_conv = ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(take_test_handler, pattern="^take_test_")
-        ],
+        entry_points=[CallbackQueryHandler(take_test_handler, pattern="^take_test_")],
         states={
             ANSWERING: [
                 CallbackQueryHandler(test_answer_handler, pattern="^ans_"),
@@ -102,129 +78,107 @@ def _build_application() -> Application:
     )
     app.add_handler(test_conv)
 
-    # ── Test yaratish conversation ────────────────────────
+    # Test yaratish
     create_conv = ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(create_test_start, pattern="^create_test$")
-        ],
+        entry_points=[CallbackQueryHandler(create_test_start, pattern="^create_test$")],
         states={
             UPLOAD_FILE: [
                 MessageHandler(filters.Document.ALL, upload_file_handler),
                 CallbackQueryHandler(manual_create_handler, pattern="^manual_create$"),
-                CallbackQueryHandler(
-                    lambda u, c: u.callback_query.answer(),
-                    pattern="^show_samples$"
-                ),
             ],
-            SET_SUBJECT: [
-                CallbackQueryHandler(lambda u, c: None, pattern="^subj_")
-            ],
-            SET_DIFFICULTY: [
-                CallbackQueryHandler(lambda u, c: None, pattern="^diff_")
-            ],
-            CONFIRM_TEST: [
-                CallbackQueryHandler(lambda u, c: None, pattern="^confirm_")
-            ],
+            SET_SUBJECT:   [CallbackQueryHandler(lambda u,c: None, pattern="^subj_")],
+            SET_DIFFICULTY:[CallbackQueryHandler(lambda u,c: None, pattern="^diff_")],
+            CONFIRM_TEST:  [CallbackQueryHandler(lambda u,c: None, pattern="^confirm_")],
         },
-        fallbacks=[
-            CommandHandler("cancel", lambda u, c: ConversationHandler.END)
-        ],
+        fallbacks=[CommandHandler("cancel", lambda u,c: ConversationHandler.END)],
         allow_reentry=True,
     )
     app.add_handler(create_conv)
 
-    # ── Global callback query handlerlar ─────────────────
-    app.add_handler(CallbackQueryHandler(browse_tests_handler,  pattern="^browse_"))
-    app.add_handler(CallbackQueryHandler(browse_tests_handler,  pattern="^test_info_"))
-    app.add_handler(CallbackQueryHandler(leaderboard_handler,   pattern="^lb_"))
-    app.add_handler(CallbackQueryHandler(admin_panel_handler,   pattern="^admin_"))
-    app.add_handler(CallbackQueryHandler(profile_handler,       pattern="^profile_"))
-    app.add_handler(CallbackQueryHandler(my_results_handler,    pattern="^profile_results$"))
-
-    # ── Main menu fallback ────────────────────────────────
-    from handlers.start import start_handler as _start
+    # Callback querylar
+    app.add_handler(CallbackQueryHandler(browse_tests_handler, pattern="^browse_"))
+    app.add_handler(CallbackQueryHandler(browse_tests_handler, pattern="^test_info_"))
+    app.add_handler(CallbackQueryHandler(leaderboard_handler,  pattern="^lb_"))
+    app.add_handler(CallbackQueryHandler(admin_panel_handler,  pattern="^admin_"))
+    app.add_handler(CallbackQueryHandler(profile_handler,      pattern="^profile_"))
+    app.add_handler(CallbackQueryHandler(my_results_handler,   pattern="^profile_results$"))
     app.add_handler(CallbackQueryHandler(
-        lambda u, c: _start(u, c),
-        pattern="^main_menu$"
+        lambda u,c: start_handler(u,c), pattern="^main_menu$"
     ))
 
-    logger.info("✅ Application qurildi — barcha handlerlar ulandi")
     return app
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 2️⃣  WEBHOOK KILLER — eski webhook bo'lsa o'chiradi
-# ══════════════════════════════════════════════════════════════════════════════
-async def kill_webhook(app: Application) -> None:
+def run_bot() -> threading.Thread | None:
     """
-    Polling ishlatishdan oldin eski webhookni o'chiradi.
-    Aks holda: 'Conflict: terminated by other getUpdates request'
+    Botni bitta daemon thread da ishga tushiradi.
+    Ikkinchi marta chaqirilsa — hech narsa qilmaydi (singleton).
     """
-    try:
-        await app.bot.delete_webhook(drop_pending_updates=True)
-        logger.info("🪓 Webhook o'chirildi (agar mavjud bo'lsa)")
-    except Exception as e:
-        logger.warning(f"Webhook o'chirishda xato (muammo emas): {e}")
+    global _bot_thread, _bot_started
 
+    with _lock:
+        # Agar allaqachon ishga tushirilgan bo'lsa — qaytib ketadi
+        if _bot_started and _bot_thread and _bot_thread.is_alive():
+            logger.info("⚠️ Bot allaqachon ishlayapti — yangi instance ochilmadi")
+            return _bot_thread
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 3️⃣  THREAD-SAFE RUNNER — event loop muammosini hal qiladi
-# ══════════════════════════════════════════════════════════════════════════════
-def run_bot() -> None:
-    """
-    Bot ni to'g'ri ishga tushirish.
+        _bot_started = True
 
-    Muammo: Streamlit o'zining event loop ini ishlatadi.
-    Yechim: Alohida thread da yangi event loop ochib botni ishlatamiz.
-    """
-    import threading
-
-    def _run_in_thread():
-        """Yangi thread da yangi event loop bilan bot ishga tushadi"""
-        # Yangi event loop — Streamlit ning loop iga tegmaydi
+    def _thread_target():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        async def _start_bot():
+        async def _run():
             initialize_firebase()
-            app = get_application()
-            await kill_webhook(app)
-            logger.info("🚀 Bot polling ishga tushdi!")
-            # run_polling o'rniga qo'lda initialize + start + idle
+            app = _build_app()
+
+            # Webhook o'chirish
+            try:
+                await app.bot.delete_webhook(drop_pending_updates=True)
+                logger.info("🪓 Webhook o'chirildi")
+            except Exception as e:
+                logger.warning(f"Webhook o'chirishda xato: {e}")
+
+            logger.info("🚀 Bot polling boshlandi!")
             async with app:
                 await app.start()
                 await app.updater.start_polling(
                     drop_pending_updates=True,
                     allowed_updates=Update.ALL_TYPES,
+                    poll_interval=1.0,
+                    timeout=30,
                 )
-                # To bot tugaguncha kutadi
+                # Cheksiz kutish
                 await asyncio.Event().wait()
 
         try:
-            loop.run_until_complete(_start_bot())
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("🛑 Bot to'xtatildi")
+            loop.run_until_complete(_run())
+        except Exception as e:
+            logger.error(f"Bot thread xato: {e}")
         finally:
             loop.close()
 
-    # Daemon thread — asosiy process tugasa u ham tugaydi
-    thread = threading.Thread(target=_run_in_thread, daemon=True, name="BotThread")
-    thread.start()
-    logger.info(f"🧵 Bot thread ishga tushdi: {thread.name}")
-    return thread
+    _bot_thread = threading.Thread(
+        target=_thread_target,
+        daemon=True,
+        name="TelegramBotThread"
+    )
+    _bot_thread.start()
+    logger.info(f"🧵 Bot thread ishga tushdi")
+    return _bot_thread
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 4️⃣  TO'G'RIDAN-TO'G'RI ISHGA TUSHIRISH (python bot.py)
-# ══════════════════════════════════════════════════════════════════════════════
 def main():
-    """Lokal serverda to'g'ridan-to'g'ri ishga tushirish uchun"""
+    """python bot.py — lokal ishga tushirish"""
     initialize_firebase()
-    app = get_application()
 
     async def _run():
-        await kill_webhook(app)
-        logger.info("🚀 Bot ishga tushdi (polling rejimi)!")
+        app = _build_app()
+        try:
+            await app.bot.delete_webhook(drop_pending_updates=True)
+        except Exception:
+            pass
+        logger.info("🚀 Bot ishga tushdi (lokal)!")
         async with app:
             await app.start()
             await app.updater.start_polling(
