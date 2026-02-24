@@ -10,38 +10,18 @@ QOIDALAR:
 - Javob: to'g'ri so'z yoki ibora
 ================================================================
 
-1. O'zbekiston ___ yilda mustaqillikka erishgan.
-TYPE: FILL_BLANK
-Javob: 1991
-Izoh: O'zbekiston 1991-yil 1-sentabrda mustaqilligini e'lon qildi.
 
-2. Suv H___ formulasiga ega.
-TYPE: FILL_BLANK
-Javob: 2O
-Izoh: Suv molekulasi 2 ta vodorod va 1 ta kislorod atomidan iborat: H₂O
 
-3. Python dasturlash tili ___ tomonidan yaratilgan.
-TYPE: FILL_BLANK
-Javob: Guido van Rossum
-Qabul_qilinadigan: guido van rossum, guido, van rossum
-Izoh: Python 1991-yilda Guido van Rossum tomonidan yaratilgan.
 
-4. Yer quyosh atrofida bir marta aylanishiga ___ kun ketadi.
-TYPE: FILL_BLANK
-Javob: 365
-Qabul_qilinadigan: 365, 365.25
-Izoh: Bir astronomik yil taxminan 365.25 kun davom etadi.
+1. Alisher Navoiy ________ yilda tug'ilgan.
+TYPE: fill_blank
+IZOH: Alisher Navoiy 1441-yil 9-fevralda Hirotda tug'ilgan.
+BALL: 2
+JAVOB: 1441
+QABUL_QILINADIGAN: 1441-yil, ming to'rt yuz qirq bir
 
-5. ___ — dunyoning eng baland tog'i.
-TYPE: FILL_BLANK
-Javob: Everest
-Qabul_qilinadigan: everest, chomolungma, qomolanma
-Izoh: Everest (Chomolungma) — 8849 metr balandlik bilan dunyo rekordchisi.
 
-6. Kvadrat tenglamaning umumiy ko'rinishi: ax² + bx + ___ = 0
-TYPE: FILL_BLANK
-Javob: c
-Izoh: Kvadrat tenglama: ax² + bx + c = 0, bu yerda a ≠ 0.
+
 
 ================================================================
 ESLATMA:
