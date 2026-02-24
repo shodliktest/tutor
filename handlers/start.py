@@ -1,84 +1,123 @@
 """
-🚀 START VA AUTHENTICATION HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Avtomatik ro'yxatdan o'tish, kutib olish va asosiy menyu
+🚀 START HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
+Yangi foydalanuvchilarni ro'yxatga olish va Deep-linking (Ssilka orqali test topish) bilan.
 """
 import logging
 from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
-from firebase.db import get_user, create_user
+from firebase.db import get_user, create_user, get_test
 from keyboards.keyboards import main_menu_keyboard
 
 logger = logging.getLogger(__name__)
 router = Router()
 
+# ==========================================================
+# 1. /START KOMANDASI VA DEEP-LINKING
+# ==========================================================
+
 @router.message(CommandStart())
-async def start_handler(message: Message, state: FSMContext):
-    """Foydalanuvchi /start bosganda ishlaydi"""
-    await state.clear() # Barcha oldingi xotiralarni tozalash
-    user = message.from_user
-    tg_id = user.id
-
-    # Bazadan tekshirish
-    db_user = get_user(tg_id)
-
-    if not db_user:
-        # Tizimda yo'q bo'lsa, avtomatik yaratish (Auth)
-        create_user(telegram_id=tg_id, name=user.full_name, username=user.username)
-        greeting = f"👋 Xush kelibsiz, <b>{user.first_name}</b>!\n\n🎓 Quiz Bot ga xush kelibsiz!"
-        logger.info(f"Yangi foydalanuvchi: {tg_id} - {user.full_name}")
+async def cmd_start(message: Message, state: FSMContext):
+    """
+    Botga /start bosilganda yoki t.me/bot?start=test_id orqali kirilganda
+    """
+    await state.clear() # Har safar start bosilganda eski holatlarni tozalaymiz
+    
+    user_id = message.from_user.id
+    user_name = message.from_user.full_name
+    username = message.from_user.username
+    
+    # 1. Foydalanuvchini bazadan tekshirish
+    user = get_user(user_id)
+    if not user:
+        # Yangi foydalanuvchi bo'lsa, ro'yxatga qo'shamiz
+        create_user(user_id, user_name, username)
+        welcome_text = f"👋 Salom, <b>{user_name}</b>!\nQuiz Bot platformasiga xush kelibsiz."
     else:
-        # Bloklanganligini tekshirish
-        if db_user.get("is_blocked"):
-            await message.answer("🚫 Siz bloklangansiz. Tizim administratoriga murojaat qiling.")
-            return
-        greeting = f"👋 Qaytib keldingiz, <b>{user.first_name}</b>!"
+        welcome_text = f"🏠 Xush kelibsiz, <b>{user_name}</b>! Sizni yana ko'rib turganimizdan xursandmiz."
 
-    welcome_text = (
-        f"{greeting}\n\n"
-        f"🎯 <b>QUIZ BOT</b> — Professional Test Platformasi\n\n"
-        f"📚 <b>Nima qila olasiz?</b>\n"
-        f"• Turli fanlar bo'yicha testlar ishlash\n"
-        f"• O'z testingizni yaratish va ulashish\n"
-        f"• Natijalaringizni kuzatish\n"
-        f"• Reytingda yuqoriga chiqish\n\n"
-        f"🏆 <b>Xususiyatlar:</b>\n"
-        f"✅ 7 turdagi test formati\n"
-        f"✅ Batafsil tahlil va izohlar\n"
-        f"✅ Leaderboard va reyting\n\n"
-        f"👇 Pastdagi menyudan boshlang:"
+    # 2. Deep-linking tekshiruvi (t.me/bot?start=test_id)
+    args = message.text.split()
+    if len(args) > 1:
+        test_id = args[1]
+        test = get_test(test_id)
+        
+        if test:
+            # Agar ssilka orqali test topilsa, to'g'ridan-to'g'ri test haqida ma'lumotga o'tamiz
+            from handlers.tests import view_test_handler
+            # view_test_handler funksiyasini chaqirish uchun soxta callback yasaymiz
+            class FakeCallback:
+                def __init__(self, message, data, from_user):
+                    self.message = message
+                    self.data = data
+                    self.from_user = from_user
+                async def answer(self): pass
+                
+            fake_cb = FakeCallback(message, f"view_test_{test_id}", message.from_user)
+            # Bu yerda view_test_handler'ni import qilib ishlatishimiz mumkin
+            # Lekin eng to'g'ri yo'li - foydalanuvchiga testni topdik deb xabar berish
+            await message.answer(f"🔍 <b>Siz qidirgan test topildi!</b>\n\nTest: <b>{test.get('title')}</b>")
+            
+            # Keyboards'dan foydalanib test ma'lumotini chiqaramiz
+            from keyboards.keyboards import test_info_keyboard
+            questions = test.get("questions", [])
+            diff = test.get("difficulty", "Nomalum").title()
+            
+            text = (
+                f"📝 <b>{test.get('title')}</b>\n\n"
+                f"📋 Savollar soni: <b>{len(questions)} ta</b>\n"
+                f"📊 Qiyinlik darajasi: <b>{diff}</b>\n"
+                f"⏱ Vaqt limiti: <b>{test.get('time_limit', 0)} daqiqa</b>\n"
+                f"<i>Pastdagi tugma orqali testni boshlashingiz mumkin:</i>"
+            )
+            await message.answer(text, reply_markup=test_info_keyboard(test_id))
+            return
+
+    # 3. Agar oddiy start bo'lsa, Asosiy Menyuni chiqaramiz
+    await message.answer(
+        f"{welcome_text}\n\nO'zingizga kerakli bo'limni tanlang:",
+        reply_markup=main_menu_keyboard(user_id)
     )
 
-    await message.answer(welcome_text, reply_markup=main_menu_keyboard(tg_id), parse_mode="HTML")
+
+# ==========================================================
+# 2. ASOSIY MENYU VA YORDAM TUGMALARI
+# ==========================================================
 
 @router.callback_query(F.data == "main_menu")
 async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
-    """Istalgan joydan Bosh sahifaga qaytish"""
+    """Barcha bo'limlardan asosiy menyuga qaytish"""
     await state.clear()
     await callback.answer()
     
-    # Bloklanganini yana bir bor tekshiramiz
-    db_user = get_user(callback.from_user.id)
-    if db_user and db_user.get("is_blocked"):
-        await callback.message.edit_text("🚫 Siz bloklangansiz.")
-        return
+    user_name = callback.from_user.full_name
+    text = f"🏠 <b>Asosiy Menyu</b>\n\nO'zingizga kerakli bo'limni tanlang, {user_name}:"
+    
+    # edit_text ishlamay qolishini (message is not modified) oldini olish uchun try-except
+    try:
+        await callback.message.edit_text(text, reply_markup=main_menu_keyboard(callback.from_user.id))
+    except Exception:
+        await callback.message.answer(text, reply_markup=main_menu_keyboard(callback.from_user.id))
+        await callback.message.delete()
 
-    text = "🎯 <b>QUIZ BOT</b> — Asosiy menyu\n\nQuyidagi bo'limlardan birini tanlang:"
-    await callback.message.edit_text(text, reply_markup=main_menu_keyboard(callback.from_user.id), parse_mode="HTML")
-
-@router.message(Command("help"))
-async def help_handler(message: Message):
+@router.callback_query(F.data == "help")
+async def help_handler(callback: CallbackQuery):
     """Yordam bo'limi"""
+    await callback.answer()
     help_text = (
-        "ℹ️ <b>YORDAM VA QOIDALAR</b>\n\n"
-        "<b>📋 Asosiy komandalar:</b>\n"
-        "/start — Bosh sahifaga qaytish va botni yangilash\n"
-        "/help — Ushbu yordam oynasini ko'rish\n\n"
-        "<b>📁 Test yaratish bo'yicha:</b>\n"
-        "Siz TXT, DOCX va PDF formatidagi fayllarni yuklashingiz mumkin. "
-        "Bot test turini avtomatik taniydi (Multiple choice, Matching, Fill in blank va hokazo).\n"
-        "Qo'shimcha savollaringiz bo'lsa admin bilan bog'laning."
+        "❓ <b>BOTDAN FOYDALANISH BO'YICHA YORDAM</b>\n\n"
+        "1️⃣ <b>Test yechish:</b> '📚 Testlar' bo'limiga kiring, fanni tanlang va testni boshlang.\n"
+        "2️⃣ <b>Test yaratish:</b> '➕ Test Yaratish' tugmasini bosing va namunadagi kabi fayl yuboring.\n"
+        "3️⃣ <b>Natijalar:</b> '📊 Natijalarim' bo'limida barcha ishlagan testlaringiz tarixini ko'rasiz.\n"
+        "4️⃣ <b>Reyting:</b> Kim eng ko'p ball to'plaganini '🏆 Reyting' bo'limida bilsangiz bo'ladi.\n\n"
+        "💡 <i>Muammo yuzaga kelsa, @admin ga murojaat qiling.</i>"
     )
-    await message.answer(help_text, parse_mode="HTML")
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="main_menu"))
+    
+    await callback.message.edit_text(help_text, reply_markup=builder.as_markup())
