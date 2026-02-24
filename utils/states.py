@@ -1,34 +1,26 @@
 """
-📌 CONVERSATION HANDLER STATELARI
+📌 AIOGRAM 3 FSM (HOLATLAR)
+Foydalanuvchi qaysi qadamda turganini xotirada saqlash uchun
 """
+from aiogram.fsm.state import State, StatesGroup
 
-# Test ishlash statelari
-ANSWERING = 1
-TEXT_ANSWER = 2
-MATCHING_ANSWER = 3
-ORDERING_ANSWER = 4
+class TestSolving(StatesGroup):
+    answering = State()
+    text_answer = State()
+    matching_answer = State()
+    ordering_answer = State()
 
-# Test yaratish statelari
-UPLOAD_FILE = 10
-SET_SUBJECT = 11
-SET_DIFFICULTY = 12
-SET_TIME_LIMIT = 13
-SET_VISIBILITY = 14
-SET_PASSING_SCORE = 15
-SET_MAX_ATTEMPTS = 16
-CONFIRM_TEST = 17
-MANUAL_QUESTION = 18
-MANUAL_OPTIONS = 19
-MANUAL_CORRECT = 20
-MANUAL_EXPLANATION = 21
+class CreateTest(StatesGroup):
+    upload_file = State()
+    set_subject = State()
+    set_difficulty = State()
+    set_time_limit = State()
+    set_visibility = State()
+    set_passing_score = State()
+    confirm_test = State()
 
-# Ro'yxatdan o'tish statelari
-REG_NAME = 30
-REG_PHONE = 31
-REG_ROLE = 32
-
-# Admin statelari
-ADMIN_ACTION = 40
-ADMIN_BLOCK_USER = 41
-ADMIN_DELETE_TEST = 42
-ADMIN_BROADCAST = 43
+class AdminPanel(StatesGroup):
+    action = State()
+    block_user = State()
+    delete_test = State()
+    broadcast = State()
