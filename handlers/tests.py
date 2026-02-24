@@ -53,30 +53,7 @@ async def browse_tests_handler(callback: CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=tests_list_keyboard(tests, user_results, subject))
 
-@router.callback_query(F.data.startswith("view_test_"))
-async def view_test_handler(callback: CallbackQuery):
-    await callback.answer()
-    test_id = callback.data.replace("view_test_", "")
-    test = get_test(test_id)
-    
-    if not test:
-        await callback.message.edit_text("❌ Test topilmadi yoki o'chirilgan.")
-        return
-        
-    questions = test.get("questions", [])
-    
-    text = (
-        f"📝 <b>{test.get('title', 'Nomsiz')}</b>\n\n"
-        f"📋 Savollar soni: <b>{len(questions)} ta</b>\n"
-        f"📊 Qiyinlik darajasi: <b>{test.get('difficulty', 'Noma\\'lum').title()}</b>\n"
-        f"⏱ Vaqt limiti: <b>{test.get('time_limit', 0)} daqiqa</b>\n"
-        f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n"
-        f"🔄 Ruxsat etilgan urinishlar: <b>{test.get('max_attempts', 0) if test.get('max_attempts', 0) > 0 else 'Cheklanmagan'}</b>\n\n"
-        f"<i>Boshlashga tayyormisiz?</i>"
-    )
-    await callback.message.edit_text(text, reply_markup=test_info_keyboard(test_id))
-
-
+view_test_handler
 # ==========================================================
 # 2. TESTNI BOSHLASH VA URINISHLARNI TEKSHIRISH
 # ==========================================================
