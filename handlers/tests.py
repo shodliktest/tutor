@@ -1,12 +1,13 @@
 """
 🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Barcha 7 xil test turi, Anti-cheat, Vaqt va Urinishlar nazorati bilan.
-Sertifikat qismi o'chirildi.
+Taymer, Doimiy yakunlash tugmasi va Tahlil chiqaruvchi funksiya bilan.
+Hech narsa qisqartirilmadi.
 """
 import time
+import io
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from firebase.db import get_db, get_test, get_user_results, save_result, get_user
@@ -37,7 +38,6 @@ async def browse_tests_handler(callback: CallbackQuery):
     subject = callback.data.replace("browse_subj_", "")
     
     db = get_db()
-    # Bazadan ommaviy testlarni tortish
     tests_ref = db.collection("tests").where("category", "==", subject).where("visibility", "==", "public").stream()
     tests = [t.to_dict() for t in tests_ref]
     
@@ -64,8 +64,6 @@ async def view_test_handler(callback: CallbackQuery):
         return
         
     questions = test.get("questions", [])
-    
-    # Python Syntax xato bermasligi uchun ma'lumotlarni alohida xavfsiz o'zgaruvchilarga olamiz
     title = test.get("title", "Nomsiz")
     difficulty = test.get("difficulty", "Nomalum").title()
     time_limit = test.get("time_limit", 0)
@@ -105,7 +103,6 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer("❌ Bu testda savollar yo'q.")
         return
 
-    # 🛡️ Urinishlar limitini tekshirish
     max_attempts = test.get("max_attempts", 0)
     if max_attempts > 0:
         user_results = get_user_results(callback.from_user.id)
@@ -117,7 +114,6 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
             )
             return
         
-    # Xotirani tayyorlash
     await state.update_data(
         test_id=test_id,
         test_data=test,
@@ -132,7 +128,7 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
 
 
 # ==========================================================
-# 3. SAVOLLARNI YUBORISH (BARCHA 7 XIL TUR UCHUN)
+# 3. SAVOLLARNI YUBORISH (TAYMER BILAN)
 # ==========================================================
 
 async def send_next_question(message: Message, state: FSMContext):
@@ -141,16 +137,21 @@ async def send_next_question(message: Message, state: FSMContext):
     questions = data.get("questions", [])
     test_data = data.get("test_data", {})
     
-    # ⏱ Vaqtni tekshirish
+    # ⏱ Vaqtni hisoblash
+    time_text = ""
     time_limit_min = test_data.get("time_limit", 0)
     if time_limit_min > 0:
-        elapsed = time.time() - data.get("start_time", time.time())
-        if elapsed > (time_limit_min * 60):
+        elapsed = int(time.time() - data.get("start_time", time.time()))
+        rem_sec = (time_limit_min * 60) - elapsed
+        
+        if rem_sec <= 0:
             await message.answer("⏳ <b>Vaqtingiz tugadi!</b> Test avtomatik yakunlandi.")
             await finish_test_process(message, state, data)
             return
+            
+        m, s = divmod(rem_sec, 60)
+        time_text = f"⏳ <b>Qolgan vaqt:</b> {m:02d}:{s:02d}\n\n"
     
-    # Savollar tugasa
     if idx >= len(questions):
         await finish_test_process(message, state, data)
         return
@@ -158,12 +159,10 @@ async def send_next_question(message: Message, state: FSMContext):
     q = questions[idx]
     q_type = q.get("type", "multiple_choice")
     
-    # Sarlavha
-    text = f"📝 <b>{idx + 1}-savol ({len(questions)} dan):</b>\n\n{q.get('question', '')}\n\n"
-    
+    # Sarlavha Taymer bilan
+    text = f"📝 <b>{idx + 1}-savol ({len(questions)} dan):</b>\n{time_text}{q.get('question', '')}\n\n"
     keyboard = None
     
-    # 🔘 TURLARGA QARAB MANTIQ
     if q_type == "multiple_choice":
         text += "\n".join(q.get("options", []))
         keyboard = multiple_choice_keyboard(q.get("options", []), idx)
@@ -195,13 +194,12 @@ async def send_next_question(message: Message, state: FSMContext):
         keyboard = finish_test_keyboard()
         await state.set_state(TestSolving.text_answer)
 
-    # 🛡️ ANTI-CHEAT: protect_content=True
     msg = await message.answer(text, reply_markup=keyboard, protect_content=True)
     await state.update_data(last_msg_id=msg.message_id)
 
 
 # ==========================================================
-# 4. JAVOBLARNI QABUL QILISH (TUGMALAR ORQALI)
+# 4. JAVOBLARNI QABUL QILISH
 # ==========================================================
 
 @router.callback_query(TestSolving.answering)
@@ -211,24 +209,20 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
     idx = state_data.get("current_index", 0)
     user_answers = state_data.get("user_answers", {})
     
-    # "Testni yakunlash" bosilsa
     if data == "finish_test":
         await callback.message.delete()
         await finish_test_process(callback.message, state, state_data)
         return
 
-    # Ko'p javobli (Multi-select) belgilash
     if data.startswith("msel_"):
         parts = data.split("_")
         q_idx = int(parts[1])
         ans = parts[2]
-        
         current_ans = user_answers.get(str(q_idx), [])
-        if ans in current_ans:
-            current_ans.remove(ans)
-        else:
-            current_ans.append(ans)
-            
+        
+        if ans in current_ans: current_ans.remove(ans)
+        else: current_ans.append(ans)
+        
         user_answers[str(q_idx)] = current_ans
         await state.update_data(user_answers=user_answers)
         
@@ -237,14 +231,12 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_reply_markup(reply_markup=kb)
         return
 
-    # "Keyingi" tugmasi (Multi-select uchun)
     if data.startswith("next_"):
         await callback.message.delete()
         await state.update_data(current_index=idx + 1)
         await send_next_question(callback.message, state)
         return
 
-    # Oddiy A, B, C, D yoki Ha/Yo'q javobi
     if data.startswith("ans_"):
         parts = data.split("_")
         q_idx = int(parts[1])
@@ -252,37 +244,27 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
         
         user_answers[str(q_idx)] = ans
         await state.update_data(user_answers=user_answers, current_index=idx + 1)
-        
         await callback.message.delete()
         await send_next_question(callback.message, state)
 
 
-# ==========================================================
-# 5. YOZMA JAVOBLARNI QABUL QILISH (TEXT INPUT)
-# ==========================================================
-
 @router.message(F.text, TestSolving.text_answer)
 async def handle_text_answer(message: Message, state: FSMContext):
-    """Yozma (Fill blank, Matching, Ordering, Text Input) javoblarni tekshirish"""
     state_data = await state.get_data()
     idx = state_data.get("current_index", 0)
     user_answers = state_data.get("user_answers", {})
     
-    # Kiritilgan matnni saqlash
     user_answers[str(idx)] = message.text.strip()
     await state.update_data(user_answers=user_answers, current_index=idx + 1)
     
-    # Oldingi savol xabarini va foydalanuvchi yozgan xabarni o'chirish (Tozalik)
     last_msg_id = state_data.get("last_msg_id")
     try:
         await message.delete()
-        if last_msg_id:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=last_msg_id)
+        if last_msg_id: await message.bot.delete_message(chat_id=message.chat.id, message_id=last_msg_id)
     except: pass
-    
     await send_next_question(message, state)
 
-# Shuningdek, text qabul qilayotganda tugma orqali testni yakunlasa ham ushlash uchun:
+
 @router.callback_query(TestSolving.text_answer, F.data == "finish_test")
 async def handle_finish_from_text_state(callback: CallbackQuery, state: FSMContext):
     state_data = await state.get_data()
@@ -291,34 +273,89 @@ async def handle_finish_from_text_state(callback: CallbackQuery, state: FSMConte
 
 
 # ==========================================================
-# 6. NATIJANI HISOBLASH (Sertifikatsiz)
+# 5. NATIJANI HISOBLASH VA SAQLASH
 # ==========================================================
 
 async def finish_test_process(message: Message, state: FSMContext, state_data: dict):
-    """Testni yakunlash, tekshirish, va bazaga saqlash"""
     test = state_data.get("test_data", {})
     questions = state_data.get("questions", [])
     user_answers = state_data.get("user_answers", {})
     start_time = state_data.get("start_time", time.time())
     
     time_spent = int(time.time() - start_time)
-    
-    # utils/scoring.py dagi maxsus logikadan foydalanish
     result = calculate_score(questions, user_answers)
     result["time_spent"] = time_spent
     result["passing_score"] = test.get("passing_score", 60)
     
-    # Bazaga saqlash
     user_id = message.chat.id
     result_id = save_result(user_id, test.get("test_id"), result)
     
     user = get_user(user_id)
     user_name = user.get("name", "Foydalanuvchi") if user else "Foydalanuvchi"
     
-    # Xabarni formatlash
     result_text = format_result_message(result, test, user_name)
     kb = result_keyboard(test.get("test_id"), result_id, result.get("passed", False))
     
     await message.answer(result_text, reply_markup=kb)
-    
     await state.clear()
+
+
+# ==========================================================
+# 6. TAHLIL VA IZOHLARNI YUBORISH
+# ==========================================================
+
+@router.callback_query(F.data.startswith("analysis_"))
+async def analysis_handler(callback: CallbackQuery):
+    await callback.answer("⏳ Tahlil fayli tayyorlanmoqda...")
+    result_id = callback.data.replace("analysis_", "")
+    
+    db = get_db()
+    res_doc = db.collection("results").document(result_id).get()
+    if not res_doc.exists:
+        await callback.message.answer("❌ Natija topilmadi.")
+        return
+        
+    res_data = res_doc.to_dict()
+    detailed = res_data.get("detailed_results", [])
+    test_id = res_data.get("test_id")
+    test = get_test(test_id)
+    questions = test.get("questions", []) if test else []
+    
+    title = test.get("title", "Nomsiz Test") if test else "Test"
+    
+    # TXT Fayl yasash uchun matn tayyorlash
+    text = f"📝 {title.upper()} - TAHLIL VA IZOHLAR\n"
+    text += "="*40 + "\n\n"
+    
+    for d in detailed:
+        idx = d.get("question_index", 0)
+        is_correct = d.get("is_correct", False)
+        user_ans = d.get("user_answer", "Belgilanmagan")
+        corr_ans = d.get("correct_answer", "Noma'lum")
+        
+        q_text = questions[idx].get("question", "Savol topilmadi") if idx < len(questions) else ""
+        explanation = questions[idx].get("explanation", "Izoh kiritilmagan.") if idx < len(questions) else "Izoh yo'q"
+        
+        status = "✅ TO'G'RI" if is_correct else "❌ XATO"
+        
+        text += f"Savol {idx+1}: {q_text}\n"
+        text += f"Holat: {status}\n"
+        text += f"Sizning javobingiz: {user_ans}\n"
+        
+        if not is_correct:
+            if isinstance(corr_ans, list): corr_ans = ", ".join(corr_ans)
+            elif isinstance(corr_ans, dict): corr_ans = ", ".join([f"{k}-{v}" for k,v in corr_ans.items()])
+            text += f"To'g'ri javob: {corr_ans}\n"
+            
+        text += f"Izoh: {explanation}\n"
+        text += "-"*40 + "\n\n"
+        
+    # Xotirada fayl yasab yuborish
+    file_obj = io.BytesIO(text.encode('utf-8'))
+    doc = BufferedInputFile(file_obj.getvalue(), filename=f"Tahlil_{result_id}.txt")
+    
+    await callback.message.answer_document(
+        document=doc, 
+        caption="📊 <b>Test bo'yicha batafsil tahlil.</b>\nUshbu faylda sizning xatolaringiz, to'g'ri javoblar va izohlar jamlangan.",
+        parse_mode="HTML"
+    )
