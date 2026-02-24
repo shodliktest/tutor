@@ -1,11 +1,12 @@
 """
 🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
 Barcha 7 xil test turi, Anti-cheat, Vaqt va Urinishlar nazorati bilan.
+Sertifikat qismi o'chirildi.
 """
 import time
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, BufferedInputFile
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from firebase.db import get_db, get_test, get_user_results, save_result, get_user
@@ -16,7 +17,6 @@ from keyboards.keyboards import (
     result_keyboard, multiple_choice_keyboard, true_false_keyboard,
     multi_select_keyboard, finish_test_keyboard
 )
-from utils.certificate_gen import generate_pdf_certificate
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -288,5 +288,37 @@ async def handle_finish_from_text_state(callback: CallbackQuery, state: FSMConte
     state_data = await state.get_data()
     await callback.message.delete()
     await finish_test_process(callback.message, state, state_data)
-            
+
+
+# ==========================================================
+# 6. NATIJANI HISOBLASH (Sertifikatsiz)
+# ==========================================================
+
+async def finish_test_process(message: Message, state: FSMContext, state_data: dict):
+    """Testni yakunlash, tekshirish, va bazaga saqlash"""
+    test = state_data.get("test_data", {})
+    questions = state_data.get("questions", [])
+    user_answers = state_data.get("user_answers", {})
+    start_time = state_data.get("start_time", time.time())
+    
+    time_spent = int(time.time() - start_time)
+    
+    # utils/scoring.py dagi maxsus logikadan foydalanish
+    result = calculate_score(questions, user_answers)
+    result["time_spent"] = time_spent
+    result["passing_score"] = test.get("passing_score", 60)
+    
+    # Bazaga saqlash
+    user_id = message.chat.id
+    result_id = save_result(user_id, test.get("test_id"), result)
+    
+    user = get_user(user_id)
+    user_name = user.get("name", "Foydalanuvchi") if user else "Foydalanuvchi"
+    
+    # Xabarni formatlash
+    result_text = format_result_message(result, test, user_name)
+    kb = result_keyboard(test.get("test_id"), result_id, result.get("passed", False))
+    
+    await message.answer(result_text, reply_markup=kb)
+    
     await state.clear()
