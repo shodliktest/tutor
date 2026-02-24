@@ -10,13 +10,14 @@ QOIDALAR:
 - Foydalanuvchi virgul bilan ajratib tartibini yozadi
 ================================================================
 
-1. Quyidagi mevalarni ularning ranglari bilan moslang:
-TYPE: matching
-IZOH: Mevalarning pishgan holatidagi asosiy ranglari hisobga olingan.
-BALL: 2
-CHAP: Olma | Qizil
-CHAP: Banan | Sariq
-CHAP: Uzum | Yashil
+1. Raqamlarni o'sish tartibida joylashtiring:
+TYPE: ordering
+IZOH: Sonlarni eng kichigidan boshlab tartiblash kerak.
+BALL: 1
+1. 10
+2. 25
+3. 50
+4. 100
 ================================================================
 ESLATMA:
 - Foydalanuvchi elementlarni vergul bilan ajratib yozadi
