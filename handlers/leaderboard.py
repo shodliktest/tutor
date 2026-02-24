@@ -1,119 +1,71 @@
 """
 🏆 LEADERBOARD HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Umumiy, oylik va ma'lum bir test bo'yicha kuchlilar ro'yxati
+Global va Testlar kesimidagi eng kuchli o'quvchilar reytingi.
 """
+import logging
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
-from firebase.db import get_global_leaderboard, get_leaderboard_by_test, get_user, get_db
+from aiogram.types import CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton
+
+from firebase.db import get_global_leaderboard, get_leaderboard_by_test, get_test
 from keyboards.keyboards import leaderboard_keyboard
 
+logger = logging.getLogger(__name__)
 router = Router()
 
-@router.callback_query(F.data.in_(["lb_global", "leaderboard"]))
-async def show_global_lb(callback: CallbackQuery):
+@router.callback_query(F.data == "lb_global")
+async def global_leaderboard_handler(callback: CallbackQuery):
+    """Umumiy (Global) TOP 10 reyting"""
     await callback.answer()
     
-    # Bazadan TOP 20 foydalanuvchini tortish
-    users = get_global_leaderboard(limit=20)
+    leaders = get_global_leaderboard(limit=10) # db.py dagi funksiya
     
-    medals = ["🥇", "🥈", "🥉"] + ["🏅"] * 17
-    text = "🏆 <b>UMUMIY REYTING (TOP 20)</b>\n\n"
+    text = "🌍 <b>GLOBAL REYTING (TOP 10)</b>\n"
+    text += "<i>O'rtacha o'zlashtirish foizi bo'yicha:</i>\n\n"
     
-    if not users:
-        text += "Hali hech kim test ishlamagan.\nBirinchi bo'ling! 🚀"
+    if not leaders:
+        text += "📭 Hozircha reyting bo'sh."
     else:
-        for i, user in enumerate(users):
-            medal = medals[i] if i < len(medals) else f"{i+1}."
-            name = user.get("name", "Noma'lum")[:20]
-            avg_score = user.get("avg_score", 0)
-            tests_count = user.get("total_tests", 0)
-            
-            text += f"{medal} <b>{name}</b> — {avg_score:.1f}% ({tests_count} ta test)\n"
-            
-    await callback.message.edit_text(text, reply_markup=leaderboard_keyboard("global"), parse_mode="HTML")
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        for i, user in enumerate(leaders):
+            medal = medals[i] if i < 10 else f"{i+1}."
+            avg = round(user.get("avg_score", 0), 1)
+            text += f"{medal} <b>{user.get('name')}</b> — {avg}% ({user.get('total_tests')} ta test)\n"
 
-@router.callback_query(F.data == "lb_monthly")
-async def show_monthly_lb(callback: CallbackQuery):
-    await callback.answer()
-    
-    from datetime import datetime
-    current_month = datetime.now().month
-    
-    db = get_db()
-    results = db.collection("results").stream()
-    
-    user_monthly_scores = {}
-    for r in results:
-        data = r.to_dict()
-        comp_time = data.get("completed_at")
-        if comp_time and comp_time.month == current_month:
-            uid = data.get("user_id")
-            if uid not in user_monthly_scores:
-                user_monthly_scores[uid] = []
-            user_monthly_scores[uid].append(data.get("percentage", 0))
-            
-    # O'rtacha foiz bo'yicha saralash
-    sorted_users = sorted(
-        user_monthly_scores.items(),
-        key=lambda x: sum(x[1])/len(x[1]), 
-        reverse=True
-    )[:20]
-    
-    medals = ["🥇", "🥈", "🥉"] + ["🏅"] * 17
-    text = f"📅 <b>BU OYNING ENG FAOL O'QUVCHILARI</b>\n\n"
-    
-    if not sorted_users:
-        text += "Bu oy hali hech kim test ishlamagan."
-    else:
-        for i, (uid, scores) in enumerate(sorted_users):
-            user = get_user(int(uid))
-            name = user.get("name", "Noma'lum")[:20] if user else "Noma'lum"
-            avg = sum(scores) / len(scores)
-            count = len(scores)
-            
-            medal = medals[i] if i < len(medals) else f"{i+1}."
-            text += f"{medal} <b>{name}</b> — {avg:.1f}% ({count} marta ishlagan)\n"
-            
-    await callback.message.edit_text(text, reply_markup=leaderboard_keyboard("monthly"), parse_mode="HTML")
+    await callback.message.edit_text(text, reply_markup=leaderboard_keyboard("global"))
 
 @router.callback_query(F.data.startswith("lb_test_"))
-async def show_specific_test_lb(callback: CallbackQuery):
+async def test_leaderboard_handler(callback: CallbackQuery):
+    """Ma'lum bir test bo'yicha TOP 10 natijalar"""
     await callback.answer()
-    test_id = callback.data.replace("lb_test_", "")
     
-    from firebase.db import get_test
-    results = get_leaderboard_by_test(test_id, limit=10)
+    test_id = callback.data.replace("lb_test_", "")
     test = get_test(test_id)
     
-    test_title = test.get("title", "Test") if test else "Test"
+    if not test:
+        await callback.message.answer("❌ Test topilmadi.")
+        return
+        
+    leaders = get_leaderboard_by_test(test_id, limit=10)
     
-    text = f"🏆 <b>{test_title}</b>\nTop 10 eng yuqori natijalar:\n\n"
-    medals = ["🥇", "🥈", "🥉"] + ["🏅"] * 7
+    text = f"🏆 <b>TEST REYTINGI:</b>\n📝 {test.get('title')}\n\n"
     
-    if not results:
-        text += "Hali hech kim bu testni ishlamagan."
+    if not leaders:
+        text += "📭 Bu testni hali hech kim yechmagan."
     else:
-        for i, r in enumerate(results):
-            name = r.get("user_name", "Noma'lum")[:20]
-            pct = r.get("best_percentage", 0)
-            score = r.get("best_score", 0)
-            medal = medals[i] if i < len(medals) else f"{i+1}."
-            
-            text += f"{medal} <b>{name}</b> — {pct:.1f}% ({score} ball)\n"
-            
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
+        for i, res in enumerate(leaders):
+            place = i + 1
+            text += f"{place}. <b>{res.get('user_name')}</b> — {res.get('best_percentage')}% ({res.get('best_score')} ball)\n"
+
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data=f"view_test_{test_id}"))
+    builder.row(InlineKeyboardButton(text="🏠 Bosh sahifa", callback_data="main_menu"))
     
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
-# Hozircha "Fan bo'yicha" reyting menyusi
 @router.callback_query(F.data == "lb_subject")
-async def show_subject_lb_prompt(callback: CallbackQuery):
-    await callback.answer()
-    
-    from keyboards.keyboards import subjects_keyboard
-    # Funksiya kelajakda fanlarga qarab reyting ajratish uchun tayyorlandi
-    text = "📚 <b>FAN BO'YICHA REYTING</b>\n\nQaysi fan reytingini ko'rmoqchisiz?"
-    await callback.message.edit_text(text, reply_markup=subjects_keyboard(callback_prefix="lb_subj_"))
+async def subject_leaderboard_info(callback: CallbackQuery):
+    """Hozircha fanlar bo'yicha reyting funksiyasi tayyorlanmoqda deb xabar berish"""
+    await callback.answer("⏳ Tez kunda...")
+    await callback.message.answer("📊 Fanlar bo'yicha alohida reyting tizimi keyingi yangilanishda qo'shiladi!")
