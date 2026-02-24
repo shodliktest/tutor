@@ -32,16 +32,16 @@ def init_firebase():
 @st.cache_resource
 def start_bot_thread():
     """
-    Telegram botni alohida daemon thread da ishga tushiradi.
-    - Singleton: faqat bir marta chaqiriladi
-    - WebhookKiller: eski webhook o'chiriladi
-    - Thread-safe: Streamlit event loop ga tegmaydi
+    cache_resource — Streamlit qayta render qilsa ham
+    bu funksiya FAQAT BIR MARTA chaqiriladi.
+    bot.py dagi _lock ham qo'shimcha himoya beradi.
     """
     try:
         from bot import run_bot
         thread = run_bot()
         return thread
     except Exception as e:
+        st.error(f"Bot ishga tushmadi: {e}")
         return None
 
 ok = init_firebase()
@@ -334,4 +334,4 @@ universe_domain             = "googleapis.com"
     }
     for k, v in checks.items():
         st.write(f"{'✅' if v else '❌'} `{k}`")
-                    
+    
