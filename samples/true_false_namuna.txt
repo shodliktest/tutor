@@ -1,52 +1,11 @@
-================================================================
-📋 HA / YO'Q TESTI (TRUE/FALSE) — NAMUNA FAYL
-================================================================
-Fayl formati: TXT (UTF-8)
-Test turi: true_false
+1. Kitablar faqat qog'ozdan tayyorlanadi.
+TYPE: true_false
+IZOH: Hozirgi kunda elektron kitoblar (e-books) va audio kitoblar ham keng tarqalgan.
+BALL: 1
+JAVOB: Yo'q
 
-QOIDALAR:
-- TYPE: TRUE_FALSE qatorini qo'shing
-- Javob: Ha yoki Yo'q (True yoki False ham qabul qilinadi)
-- Foydalanuvchi ✅ Ha yoki ❌ Yo'q tugmasini bosadi
-================================================================
-
-1. Er yuzining 70% dan ortiq qismi suv bilan qoplangan.
-TYPE: TRUE_FALSE
-Javob: Ha
-Izoh: Er yuzining taxminan 71% ini okeanlar va dengizlar egallaydi.
-
-2. O'zbekiston 1991-yilda mustaqillikka erishgan.
-TYPE: TRUE_FALSE
-Javob: Ha
-Izoh: O'zbekiston Respublikasi 1991-yil 1-sentabrda mustaqilligini e'lon qildi.
-
-3. Quyosh Quyosh tizimidagi eng katta yulduz.
-TYPE: TRUE_FALSE
-Javob: Yo'q
-Izoh: Quyosh bizning tizimimizdagi yagona yulduz, lekin koinotdagi eng kattasi emas. UY Scuti undan 1700 barobar katta.
-
-4. Python ob'ektga yo'naltirilgan dasturlash tilimi?
-TYPE: TRUE_FALSE
-Javob: Ha
-Izoh: Python ko'p paradigmali til bo'lib, OOP ni ham qo'llab-quvvatlaydi.
-
-5. Atlantika okeani Tinch okeanidan katta.
-TYPE: TRUE_FALSE
-Javob: Yo'q
-Izoh: Tinch okeani Yer yuzasining 46% ini, Atlantika esa 23% ini egallaydi.
-
-6. 0 sonining kvadrati 0 ga teng.
-TYPE: TRUE_FALSE
-Javob: Ha
-Izoh: 0² = 0 × 0 = 0
-
-7. Baliqlar sut emizuvchilar?
-TYPE: TRUE_FALSE
-Javob: Yo'q
-Izoh: Baliqlar suvda yashaydigan umurtqali hayvonlar, sut emizuvchilar emas.
-
-================================================================
-ESLATMA:
-- Ha, To'g'ri, True, Yes, 1, + — to'g'ri deb qabul qilinadi
-- Yo'q, Noto'g'ri, False, No, 0, - — noto'g'ri deb qabul qilinadi
-================================================================
+2. Inson tanasining taxminan 60-70 foizi suvdan iborat.
+TYPE: true_false
+IZOH: Bu ilmiy isbotlangan fakt. Suv hayot uchun eng muhim elementdir.
+BALL: 1
+JAVOB: Ha
