@@ -1,56 +1,17 @@
-================================================================
-📋 BIR JAVOBLI TEST (MULTIPLE CHOICE) — NAMUNA FAYL
-================================================================
-Fayl formati: TXT (UTF-8)
-Test turi: multiple_choice (bir to'g'ri javob)
-
-QOIDALAR:
-- Savol raqam + nuqta yoki qavsdan boshlanadi: 1. yoki 1)
-- Variantlar: A) B) C) D) (yoki a. b. c. d.)
-- To'g'ri javob oldiga [TO'G'RI] qo'ying
-- Izoh ixtiyoriy: "Izoh: ..."
-- Ball ixtiyoriy: "Ball: 2"
-================================================================
-
 1. O'zbekistonning poytaxti qaysi shahar?
+TYPE: multiple_choice
+IZOH: Toshkent 1930-yilda Samarqand o'rniga poytaxt etib belgilangan va hozirgi kunda Markaziy Osiyodagi eng yirik shaharlardan biri.
+BALL: 1
 A) Samarqand
-B) Toshkent [TO'G'RI]
-C) Buxoro
-D) Namangan
-Izoh: Toshkent 1930-yildan beri O'zbekistonning poytaxti hisoblanadi.
+B) Buxoro
+* C) Toshkent
+D) Xiva
 
-2. Eng katta okean qaysi?
-A) Atlantika okeani
-B) Hind okeani
-C) Tinch okeani [TO'G'RI]
-D) Arktika okeani
-Izoh: Tinch okeani Yer yuzasining 46% ni egallaydi.
-
-3. Suv necha gradusda qaynaydi?
-A) 90°C
-B) 95°C
-C) 100°C [TO'G'RI]
-D) 105°C
-Izoh: Normal atmosfera bosimida suv 100°C da qaynaydi.
-
-4. Python dasturlash tili kim tomonidan yaratilgan?
-A) Dennis Ritchie
-B) Guido van Rossum [TO'G'RI]
-C) Linus Torvalds
-D) James Gosling
-Ball: 2
-Izoh: Python 1991-yilda Guido van Rossum tomonidan yaratilgan.
-
-5. Quyosh tizimida nechta sayyora bor?
-A) 7 ta
-B) 8 ta [TO'G'RI]
-C) 9 ta
-D) 10 ta
-Izoh: 2006-yilda Pluton sayyoralar ro'yxatidan chiqarildi, shu sababli 8 ta qoldi.
-
-================================================================
-YARATUVCHIGA ESLATMA:
-- [TO'G'RI] belgisini faqat BIR javob oldiga qo'ying
-- Variantlar A, B, C, D tartibida bo'lishi shart emas
-- Savollar orasida bo'sh qator qoldirish shart emas
-================================================================
+2. Quyosh qaysi tomondan chiqadi?
+TYPE: multiple_choice
+IZOH: Yer o'z o'qi atrofida g'arbdan sharqqa aylangani sababli, Quyosh sharqdan chiqayotgandek ko'rinadi.
+BALL: 1
+* A) Sharqdan
+B) G'arbdan
+C) Shimoldan
+D) Janubdan
