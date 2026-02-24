@@ -1,396 +1,328 @@
 """
-🎮 TEST ISHLASH HANDLER
-Foydalanuvchi testni ishlashi uchun barcha logika
+🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
+Barcha 7 xil test turi, Anti-cheat, Vaqt va Urinishlar nazorati bilan.
 """
 import time
-import random
 import logging
-from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler
-from firebase.db import (
-    get_test, get_tests_by_subject, get_all_tests,
-    save_result, get_attempt_count, get_user
-)
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
+from aiogram.fsm.context import FSMContext
+
+from firebase.db import get_db, get_test, get_user_results, save_result, get_user
 from utils.scoring import calculate_score, format_result_message
+from utils.states import TestSolving
 from keyboards.keyboards import (
-    multiple_choice_keyboard, true_false_keyboard,
-    multi_select_keyboard, tests_list_keyboard,
-    test_info_keyboard, subjects_keyboard, result_keyboard,
-    finish_test_keyboard
+    subjects_keyboard, tests_list_keyboard, test_info_keyboard,
+    result_keyboard, multiple_choice_keyboard, true_false_keyboard,
+    multi_select_keyboard, finish_test_keyboard
 )
-from utils.states import ANSWERING, TEXT_ANSWER
-from config import MAX_ATTEMPTS
+from utils.certificate_gen import generate_pdf_certificate
 
 logger = logging.getLogger(__name__)
+router = Router()
 
+# ==========================================================
+# 1. TESTLARNI QIDIRISH VA KO'RISH
+# ==========================================================
 
-async def browse_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Testlarni ko'rish"""
-    query = update.callback_query
-    if query:
-        await query.answer()
-        data = query.data
-        
-        if data == "browse_all" or data == "browse_subjects":
-            # Fanlar ro'yxati
-            text = "📚 <b>FANLAR RO'YXATI</b>\n\nQaysi fan bo'yicha test ishlashni xohlaysiz?"
-            await query.message.edit_text(text, reply_markup=subjects_keyboard(), parse_mode="HTML")
-            
-        elif data.startswith("browse_subj_"):
-            subject = data.replace("browse_subj_", "")
-            tests = get_tests_by_subject(subject)
-            
-            if not tests:
-                await query.message.edit_text(
-                    f"📭 <b>{subject}</b> bo'yicha hali test yo'q.\n\nBirinchi bo'lib test yarating! 🚀",
-                    reply_markup=subjects_keyboard(),
-                    parse_mode="HTML"
-                )
-                return
-            
-            text = f"📚 <b>{subject}</b> bo'yicha testlar\n\n{len(tests)} ta test topildi:"
-            await query.message.edit_text(
-                text,
-                reply_markup=tests_list_keyboard(tests, subject=subject),
-                parse_mode="HTML"
-            )
-        
-        elif data.startswith("test_info_"):
-            test_id = data.replace("test_info_", "")
-            await show_test_info(update, context, test_id)
+@router.callback_query(F.data.in_(["browse_all", "browse_subjects"]))
+async def browse_subjects_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = "📚 <b>FANLAR RO'YXATI</b>\n\nQaysi fan bo'yicha test ishlashni xohlaysiz?"
+    await callback.message.edit_text(text, reply_markup=subjects_keyboard())
 
-
-async def show_test_info(update: Update, context: ContextTypes.DEFAULT_TYPE, test_id: str):
-    """Test ma'lumotlarini ko'rsatish"""
-    query = update.callback_query
+@router.callback_query(F.data.startswith("browse_subj_"))
+async def browse_tests_handler(callback: CallbackQuery):
+    await callback.answer()
+    subject = callback.data.replace("browse_subj_", "")
     
-    test = get_test(test_id)
-    if not test:
-        msg = "❌ Test topilmadi yoki o'chirilgan."
-        if query:
-            await query.message.edit_text(msg)
-        else:
-            await update.message.reply_text(msg)
-        return
+    db = get_db()
+    # Bazadan ommaviy testlarni tortish
+    tests_ref = db.collection("tests").where("category", "==", subject).where("visibility", "==", "public").stream()
+    tests = [t.to_dict() for t in tests_ref]
     
-    user_id = (query.from_user if query else update.effective_user).id
-    attempts_used = get_attempt_count(user_id, test_id)
-    max_attempts = test.get("max_attempts", MAX_ATTEMPTS)
-    attempts_left = max(0, max_attempts - attempts_used)
-    is_creator = test.get("creator_id") == user_id
-    
-    difficulty_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴", "expert": "⚡"}.get(test.get("difficulty"), "⚪")
-    type_names = {
-        "multiple_choice": "🔘 Bir javobli",
-        "multi_select": "☑️ Ko'p javobli",
-        "true_false": "✅ Ha/Yo'q",
-        "text_input": "✍️ Yozma javob",
-        "matching": "🔗 Moslashtirish",
-        "ordering": "🔢 Tartiblash",
-        "fill_blank": "📝 Bo'sh joyni to'ldirish"
-    }
-    
-    text = f"""
-📝 <b>{test.get('title', 'Test')}</b>
-
-📖 {test.get('description', 'Tavsif yo\'q')}
-
-━━━━━━━━━━━━━━━
-📚 Fan: <b>{test.get('subject', 'Noma\'lum')}</b>
-{difficulty_emoji} Qiyinlik: <b>{test.get('difficulty', 'medium').capitalize()}</b>
-🎮 Tur: <b>{type_names.get(test.get('test_type', 'multiple_choice'), 'Test')}</b>
-❓ Savollar: <b>{test.get('question_count', 0)} ta</b>
-⏱ Vaqt chegarasi: <b>{test.get('time_limit', 30)} daqiqa</b>
-🎯 O'tish balli: <b>{test.get('passing_score', 60)}%</b>
-━━━━━━━━━━━━━━━
-📊 Jami urinishlar: <b>{test.get('total_attempts', 0)}</b>
-📈 O'rtacha natija: <b>{test.get('avg_score', 0):.1f}%</b>
-🔄 Urinish huquqi: <b>{attempts_left}/{max_attempts}</b>
-"""
-    
-    keyboard = test_info_keyboard(test_id, attempts_left, is_creator)
-    
-    if query:
-        await query.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    else:
-        await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
-
-
-async def take_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Testni boshlash"""
-    query = update.callback_query
-    await query.answer()
-    
-    test_id = query.data.replace("take_test_", "")
-    user_id = query.from_user.id
-    
-    # Urinishlarni tekshirish
-    test = get_test(test_id)
-    if not test:
-        await query.message.edit_text("❌ Test topilmadi!")
-        return ConversationHandler.END
-    
-    attempts_used = get_attempt_count(user_id, test_id)
-    max_attempts = test.get("max_attempts", MAX_ATTEMPTS)
-    
-    if attempts_used >= max_attempts:
-        await query.message.edit_text(
-            f"🚫 Siz bu testni {max_attempts} marta ishladingiz. Endi urinish huquqi yo'q.",
-            reply_markup=test_info_keyboard(test_id, 0)
+    if not tests:
+        await callback.message.edit_text(
+            f"📭 Hozircha <b>{subject}</b> fani bo'yicha ommaviy testlar yo'q.",
+            reply_markup=subjects_keyboard()
         )
-        return ConversationHandler.END
+        return
+        
+    user_results = get_user_results(callback.from_user.id)
+    text = f"📂 <b>{subject}</b> fanidan testlar:\nKerakli testni tanlang:"
     
-    # Test ma'lumotlarini sessiyaga saqlash
+    await callback.message.edit_text(text, reply_markup=tests_list_keyboard(tests, user_results, subject))
+
+@router.callback_query(F.data.startswith("view_test_"))
+async def view_test_handler(callback: CallbackQuery):
+    await callback.answer()
+    test_id = callback.data.replace("view_test_", "")
+    test = get_test(test_id)
+    
+    if not test:
+        await callback.message.edit_text("❌ Test topilmadi yoki o'chirilgan.")
+        return
+        
     questions = test.get("questions", [])
     
-    if test.get("shuffle_questions", True):
-        random.shuffle(questions)
-    
-    context.user_data["current_test"] = {
-        "test_id": test_id,
-        "test": test,
-        "questions": questions,
-        "current_index": 0,
-        "answers": {},
-        "multi_select_temp": set(),
-        "start_time": time.time(),
-        "attempt_number": attempts_used + 1
-    }
-    
-    # Birinchi savolni yuborish
-    await _send_question(query.message, context, 0)
-    return ANSWERING
+    text = (
+        f"📝 <b>{test.get('title', 'Nomsiz')}</b>\n\n"
+        f"📋 Savollar soni: <b>{len(questions)} ta</b>\n"
+        f"📊 Qiyinlik darajasi: <b>{test.get('difficulty', 'Noma\\'lum').title()}</b>\n"
+        f"⏱ Vaqt limiti: <b>{test.get('time_limit', 0)} daqiqa</b>\n"
+        f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n"
+        f"🔄 Ruxsat etilgan urinishlar: <b>{test.get('max_attempts', 0) if test.get('max_attempts', 0) > 0 else 'Cheklanmagan'}</b>\n\n"
+        f"<i>Boshlashga tayyormisiz?</i>"
+    )
+    await callback.message.edit_text(text, reply_markup=test_info_keyboard(test_id))
 
 
-async def _send_question(message, context: ContextTypes.DEFAULT_TYPE, idx: int):
-    """Savolni yuborish"""
-    test_data = context.user_data.get("current_test", {})
-    questions = test_data.get("questions", [])
+# ==========================================================
+# 2. TESTNI BOSHLASH VA URINISHLARNI TEKSHIRISH
+# ==========================================================
+
+@router.callback_query(F.data.startswith("start_test_"))
+async def start_test_handler(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    test_id = callback.data.replace("start_test_", "")
+    test = get_test(test_id)
     
-    if idx >= len(questions):
-        # Test tugadi
-        await _finish_test(message, context)
+    if not test:
+        await callback.message.answer("❌ Test topilmadi.")
         return
-    
-    question = questions[idx]
-    q_type = question.get("type", "multiple_choice")
-    total = len(questions)
-    
-    # Progress bar
-    filled = int((idx / total) * 10)
-    progress = "█" * filled + "░" * (10 - filled)
-    
-    question_text = f"""
-📊 {progress} {idx + 1}/{total}
-⏱ <b>Savol {idx + 1}</b>
+        
+    questions = test.get("questions", [])
+    if not questions:
+        await callback.message.answer("❌ Bu testda savollar yo'q.")
+        return
 
-❓ {question.get('question', '')}
-"""
+    # 🛡️ Urinishlar limitini tekshirish
+    max_attempts = test.get("max_attempts", 0)
+    if max_attempts > 0:
+        user_results = get_user_results(callback.from_user.id)
+        attempts_made = sum(1 for r in user_results if r.get("test_id") == test_id)
+        if attempts_made >= max_attempts:
+            await callback.message.answer(
+                f"🚫 Siz bu testni ishlash limitini tugatgansiz.\n"
+                f"(Ruxsat etilgan: {max_attempts} marta, Siz ishladingiz: {attempts_made} marta)"
+            )
+            return
+        
+    # Xotirani tayyorlash
+    await state.update_data(
+        test_id=test_id,
+        test_data=test,
+        questions=questions,
+        current_index=0,
+        user_answers={},
+        start_time=time.time()
+    )
     
-    # Rasm bormi?
-    if question.get("image_url"):
-        await message.reply_photo(question["image_url"], caption=question_text, parse_mode="HTML")
+    await callback.message.delete()
+    await send_next_question(callback.message, state)
+
+
+# ==========================================================
+# 3. SAVOLLARNI YUBORISH (BARCHA 7 XIL TUR UCHUN)
+# ==========================================
+
+async def send_next_question(message: Message, state: FSMContext):
+    data = await state.get_data()
+    idx = data.get("current_index", 0)
+    questions = data.get("questions", [])
+    test_data = data.get("test_data", {})
     
-    # Savol turiga qarab klaviatura
+    # ⏱ Vaqtni tekshirish
+    time_limit_min = test_data.get("time_limit", 0)
+    if time_limit_min > 0:
+        elapsed = time.time() - data.get("start_time", time.time())
+        if elapsed > (time_limit_min * 60):
+            await message.answer("⏳ <b>Vaqtingiz tugadi!</b> Test avtomatik yakunlandi.")
+            await finish_test_process(message, state, data)
+            return
+    
+    # Savollar tugasa
+    if idx >= len(questions):
+        await finish_test_process(message, state, data)
+        return
+        
+    q = questions[idx]
+    q_type = q.get("type", "multiple_choice")
+    
+    # Sarlavha
+    text = f"📝 <b>{idx + 1}-savol ({len(questions)} dan):</b>\n\n{q.get('question', '')}\n\n"
+    
+    keyboard = None
+    
+    # 🔘 TURLARGA QARAB MANTIQ
     if q_type == "multiple_choice":
-        keyboard = multiple_choice_keyboard(question.get("options", []), idx)
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
-    
+        text += "\n".join(q.get("options", []))
+        keyboard = multiple_choice_keyboard(q.get("options", []), idx)
+        await state.set_state(TestSolving.answering)
+        
     elif q_type == "true_false":
         keyboard = true_false_keyboard(idx)
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
-    
+        await state.set_state(TestSolving.answering)
+        
     elif q_type == "multi_select":
-        question_text += "\n💡 <i>Bir nechta javobni tanlashingiz mumkin</i>"
-        keyboard = multi_select_keyboard(question.get("options", []), idx)
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
-    
-    elif q_type in ["text_input", "fill_blank"]:
-        question_text += "\n✍️ <i>Javobingizni matn ko'rinishida yozing</i>"
-        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{idx}_skip")
-        ]])
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
-    
+        text += "\n".join(q.get("options", []))
+        user_answers = data.get("user_answers", {})
+        current_selected = user_answers.get(str(idx), [])
+        keyboard = multi_select_keyboard(q.get("options", []), idx, current_selected)
+        await state.set_state(TestSolving.answering)
+        
     elif q_type == "matching":
-        left = question.get("left_items", [])
-        right = question.get("right_items", [])
+        text += "<i>🔗 Iltimos, javoblaringizni quyidagi formatda xabar qilib yuboring:\nMasalan: 1-A, 2-C, 3-B</i>"
+        keyboard = finish_test_keyboard()
+        await state.set_state(TestSolving.text_answer)
         
-        pairs_text = "\n🔗 <b>Quyidagilarni moslang:</b>\n"
-        pairs_text += "\n".join([f"  <b>{i+1}.</b> {item}" for i, item in enumerate(left)])
-        pairs_text += "\n\n"
-        pairs_text += "\n".join([f"  <b>{chr(65+i)}.</b> {item}" for i, item in enumerate(right)])
-        
-        question_text += pairs_text
-        question_text += "\n\n✍️ <i>Javobni shu formatda yozing: 1-A, 2-C, 3-B, 4-D</i>"
-        
-        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{idx}_skip")
-        ]])
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
-    
     elif q_type == "ordering":
-        items = question.get("items", [])
-        items_shuffled = items.copy()
-        random.shuffle(items_shuffled)
+        text += "<i>🔢 Iltimos, to'g'ri tartibni vergul bilan ajratib yuboring:\nMasalan: 3, 1, 4, 2</i>"
+        keyboard = finish_test_keyboard()
+        await state.set_state(TestSolving.text_answer)
         
-        items_text = "\n🔢 <b>Quyidagilarni to'g'ri tartibga keltiring:</b>\n"
-        items_text += "\n".join([f"  • {item}" for item in items_shuffled])
-        question_text += items_text
-        question_text += "\n\n✍️ <i>To'g'ri tartibda yozing (vergul bilan): Birinchi, Ikkinchi, ...</i>"
-        
-        # Shuffled items ni saqlash
-        test_data["ordering_options"] = items_shuffled
-        
-        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{idx}_skip")
-        ]])
-        await message.reply_text(question_text, reply_markup=keyboard, parse_mode="HTML")
+    elif q_type == "text_input" or q_type == "fill_blank":
+        text += "<i>✍️ Javobingizni oddiy xabar ko'rinishida yozib yuboring.</i>"
+        keyboard = finish_test_keyboard()
+        await state.set_state(TestSolving.text_answer)
+
+    # 🛡️ ANTI-CHEAT: protect_content=True
+    msg = await message.answer(text, reply_markup=keyboard, protect_content=True)
+    await state.update_data(last_msg_id=msg.message_id)
 
 
-async def test_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Javobni qayta ishlash"""
-    test_data = context.user_data.get("current_test")
-    if not test_data:
-        return ConversationHandler.END
+# ==========================================================
+# 4. JAVOBLARNI QABUL QILISH (TUGMALAR ORQALI)
+# ==========================================================
+
+@router.callback_query(TestSolving.answering)
+async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
+    data = callback.data
+    state_data = await state.get_data()
+    idx = state_data.get("current_index", 0)
+    user_answers = state_data.get("user_answers", {})
     
-    idx = test_data["current_index"]
-    questions = test_data["questions"]
-    question = questions[idx]
-    q_type = question.get("type", "multiple_choice")
-    
-    # Callback query (tugmalar) orqali javob
-    if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        data = query.data
+    # "Testni yakunlash" bosilsa
+    if data == "finish_test":
+        await callback.message.delete()
+        await finish_test_process(callback.message, state, state_data)
+        return
+
+    # Ko'p javobli (Multi-select) belgilash
+    if data.startswith("msel_"):
+        parts = data.split("_")
+        q_idx = int(parts[1])
+        ans = parts[2]
         
-        if data.startswith("multi_"):
-            # Ko'p javobli: variantni tanlash/bekor qilish
-            _, q_idx, opt_idx = data.split("_")
-            opt_idx = int(opt_idx)
+        current_ans = user_answers.get(str(q_idx), [])
+        if ans in current_ans:
+            current_ans.remove(ans)
+        else:
+            current_ans.append(ans)
             
-            selected = test_data.get("multi_select_temp", set())
-            if opt_idx in selected:
-                selected.remove(opt_idx)
-            else:
-                selected.add(opt_idx)
-            test_data["multi_select_temp"] = selected
-            
-            # Klaviaturani yangilash
-            keyboard = multi_select_keyboard(question.get("options", []), idx, selected)
-            await query.message.edit_reply_markup(keyboard)
-            return ANSWERING
+        user_answers[str(q_idx)] = current_ans
+        await state.update_data(user_answers=user_answers)
         
-        elif data.startswith("ans_"):
-            parts = data.split("_")
-            q_idx = int(parts[1])
-            answer = parts[2]
-            
-            if answer == "skip":
-                test_data["answers"][str(idx)] = None
-            elif answer == "confirm":
-                # Ko'p javobli tasdiqlash
-                test_data["answers"][str(idx)] = list(test_data.get("multi_select_temp", set()))
-                test_data["multi_select_temp"] = set()
-            else:
-                test_data["answers"][str(idx)] = int(answer)
+        q = state_data["questions"][q_idx]
+        kb = multi_select_keyboard(q.get("options", []), q_idx, current_ans)
+        await callback.message.edit_reply_markup(reply_markup=kb)
+        return
+
+    # "Keyingi" tugmasi (Multi-select uchun)
+    if data.startswith("next_"):
+        await callback.message.delete()
+        await state.update_data(current_index=idx + 1)
+        await send_next_question(callback.message, state)
+        return
+
+    # Oddiy A, B, C, D yoki Ha/Yo'q javobi
+    if data.startswith("ans_"):
+        parts = data.split("_")
+        q_idx = int(parts[1])
+        ans = parts[2]
         
-        message = query.message
-    
-    # Matn javob
-    elif update.message:
-        user_text = update.message.text.strip()
+        user_answers[str(q_idx)] = ans
+        await state.update_data(user_answers=user_answers, current_index=idx + 1)
         
-        if q_type in ["text_input", "fill_blank"]:
-            test_data["answers"][str(idx)] = user_text
-        
-        elif q_type == "matching":
-            # Format: 1-A, 2-C, 3-B
-            pairs = {}
-            for pair in user_text.split(","):
-                pair = pair.strip()
-                if "-" in pair:
-                    left, right = pair.split("-")
-                    try:
-                        left_idx = int(left.strip()) - 1
-                        right_idx = ord(right.strip().upper()) - 65
-                        pairs[left_idx] = right_idx
-                    except:
-                        pass
-            test_data["answers"][str(idx)] = pairs
-        
-        elif q_type == "ordering":
-            items = [item.strip() for item in user_text.split(",")]
-            options = test_data.get("ordering_options", question.get("items", []))
-            order = []
-            for item in items:
-                for i, opt in enumerate(question.get("items", [])):
-                    if opt.lower() in item.lower() or item.lower() in opt.lower():
-                        order.append(i)
-                        break
-            test_data["answers"][str(idx)] = order
-        
-        message = update.message
-    
-    # Keyingi savolga o'tish
-    test_data["current_index"] = idx + 1
-    
-    total = len(questions)
-    next_idx = test_data["current_index"]
-    
-    if next_idx >= total:
-        await _finish_test(message, context)
-        return ConversationHandler.END
-    
-    await _send_question(message, context, next_idx)
-    return ANSWERING
+        await callback.message.delete()
+        await send_next_question(callback.message, state)
 
 
-async def _finish_test(message, context: ContextTypes.DEFAULT_TYPE):
-    """Testni tugatish va natijani hisoblash"""
-    test_data = context.user_data.get("current_test", {})
-    test = test_data.get("test", {})
-    questions = test_data.get("questions", [])
-    answers = test_data.get("answers", {})
-    start_time = test_data.get("start_time", time.time())
+# ==========================================================
+# 5. YOZMA JAVOBLARNI QABUL QILISH (TEXT INPUT)
+# ==========================================================
+
+@router.message(F.text, TestSolving.text_answer)
+async def handle_text_answer(message: Message, state: FSMContext):
+    """Yozma (Fill blank, Matching, Ordering, Text Input) javoblarni tekshirish"""
+    state_data = await state.get_data()
+    idx = state_data.get("current_index", 0)
+    user_answers = state_data.get("user_answers", {})
+    
+    # Kiritilgan matnni saqlash
+    user_answers[str(idx)] = message.text.strip()
+    await state.update_data(user_answers=user_answers, current_index=idx + 1)
+    
+    # Oldingi savol xabarini va foydalanuvchi yozgan xabarni o'chirish (Tozalik)
+    last_msg_id = state_data.get("last_msg_id")
+    try:
+        await message.delete()
+        if last_msg_id:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=last_msg_id)
+    except: pass
+    
+    await send_next_question(message, state)
+
+# Shuningdek, text qabul qilayotganda tugma orqali testni yakunlasa ham ushlash uchun:
+@router.callback_query(TestSolving.text_answer, F.data == "finish_test")
+async def handle_finish_from_text_state(callback: CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    await callback.message.delete()
+    await finish_test_process(callback.message, state, state_data)
+
+
+# ==========================================================
+# 6. NATIJANI HISOBLASH VA SERTIFIKAT YUBORISH
+# ==========================================================
+
+async def finish_test_process(message: Message, state: FSMContext, state_data: dict):
+    """Testni yakunlash, tekshirish, bazaga saqlash va sertifikat berish"""
+    test = state_data.get("test_data", {})
+    questions = state_data.get("questions", [])
+    user_answers = state_data.get("user_answers", {})
+    start_time = state_data.get("start_time", time.time())
     
     time_spent = int(time.time() - start_time)
     
-    # Natijani hisoblash
-    result = calculate_score(questions, answers)
+    # utils/scoring.py dagi maxsus logikadan foydalanish
+    result = calculate_score(questions, user_answers)
     result["time_spent"] = time_spent
     result["passing_score"] = test.get("passing_score", 60)
-    result["attempt_number"] = test_data.get("attempt_number", 1)
     
     # Bazaga saqlash
-    user_id = None
-    if hasattr(message, 'from_user') and message.from_user:
-        user_id = message.from_user.id
+    user_id = message.chat.id
+    result_id = save_result(user_id, test.get("test_id"), result)
     
-    result_id = None
-    if user_id:
-        result_id = save_result(user_id, test.get("test_id"), result)
-        user = get_user(user_id)
-        user_name = user.get("name", "Foydalanuvchi") if user else "Foydalanuvchi"
-    else:
-        user_name = "Foydalanuvchi"
+    user = get_user(user_id)
+    user_name = user.get("name", "Foydalanuvchi") if user else "Foydalanuvchi"
     
-    # Natija xabari
+    # Xabarni formatlash (scoring.py dagi format_result_message funksiyasidan)
     result_text = format_result_message(result, test, user_name)
-    keyboard = result_keyboard(test.get("test_id"), result_id, result.get("passed", False))
+    kb = result_keyboard(test.get("test_id"), result_id, result.get("passed", False))
     
-    await message.reply_text(result_text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(result_text, reply_markup=kb)
     
-    # Sessiyani tozalash
-    context.user_data.pop("current_test", None)
-
-
-async def finish_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Testni bekor qilish"""
-    await update.message.reply_text("❌ Test bekor qilindi.")
-    context.user_data.pop("current_test", None)
-    return ConversationHandler.END
+    # 🎓 SERTIFIKAT: Agar o'tish foizidan o'tgan bo'lsa
+    if result.get("passed", False):
+        try:
+            cert_file = generate_pdf_certificate(user_name, test.get("title"), result["percentage"])
+            input_file = BufferedInputFile(cert_file.read(), filename=f"Sertifikat_{user_name}.pdf")
+            await message.answer_document(
+                document=input_file,
+                caption="🎉 <b>Muvaffaqiyatli o'tdingiz!</b>\nBu sizning yutug'ingizni tasdiqlovchi rasmiy sertifikat.",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Sertifikat yaratishda xato: {e}")
+            
+    await state.clear()
