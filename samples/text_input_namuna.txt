@@ -1,0 +1,50 @@
+================================================================
+📋 YOZMA JAVOB TESTI (TEXT INPUT) — NAMUNA FAYL
+================================================================
+Fayl formati: TXT (UTF-8)
+Test turi: text_input
+
+QOIDALAR:
+- TYPE: TEXT_INPUT qatorini qo'shing
+- Javob: to'g'ri javob matni
+- Qabul_qilinadigan: bir nechta qabul qilinadigan javob (vergul bilan)
+- Katta-kichik harf farq qilmaydi
+================================================================
+
+1. O'zbekistonning poytaxti?
+TYPE: TEXT_INPUT
+Javob: Toshkent
+Qabul_qilinadigan: toshkent, tashkent
+Izoh: Toshkent O'zbekistonning poytaxti va eng katta shahri.
+
+2. H2O nima?
+TYPE: TEXT_INPUT
+Javob: Suv
+Qabul_qilinadigan: suv, water, H2O
+Izoh: H2O — ikki vodorod va bir kislorod atomidan tashkil topgan suv molekulasi.
+
+3. Python dasturlash tilini kim yaratgan?
+TYPE: TEXT_INPUT
+Javob: Guido van Rossum
+Qabul_qilinadigan: guido van rossum, guido, van rossum
+Izoh: Python 1991-yilda Niderlandiyalik dasturchi Guido van Rossum tomonidan yaratilgan.
+
+4. 2 ning 10 darajasi necha?
+TYPE: TEXT_INPUT
+Javob: 1024
+Qabul_qilinadigan: 1024
+Izoh: 2^10 = 2×2×2×2×2×2×2×2×2×2 = 1024
+
+5. Eng ko'p gapiriladigan til?
+TYPE: TEXT_INPUT
+Javob: Xitoy tili
+Qabul_qilinadigan: xitoy, mandarin, kitay, chinese
+Izoh: Mandarin xitoy tili — dunyoda eng ko'p gapiriladigan til (1.1 mlrd kishi).
+
+================================================================
+ESLATMA:
+- Foydalanuvchi matn yozadi va tizim solishtirib ko'radi
+- Katta/kichik harf farqi yo'q
+- Qabul_qilinadigan maydonida sinonimlar va imloviy variantlar qo'sing
+- Ball: ixtiyoriy (default: 2)
+================================================================

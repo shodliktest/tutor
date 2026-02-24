@@ -1,0 +1,100 @@
+================================================================
+📦 BARCHA TEST TURLARI — BITTA FAYLDA NAMUNA
+================================================================
+Fayl formati: TXT (UTF-8)
+
+Bu faylda barcha 7 xil test turi misol qilingan.
+Bitta faylda turli xil savollar aralash bo'lishi mumkin.
+Bot avtomatik turdni aniqlaydi.
+
+Ko'proq ma'lumot uchun har bir turdagi alohida namuna
+fayllarini ko'ring.
+================================================================
+
+--- QISM 1: BIR JAVOBLI SAVOLLAR ---
+
+1. O'zbekiston qaysi qit'ada joylashgan?
+A) Yevropa
+B) Osiyo [TO'G'RI]
+C) Afrika
+D) Amerika
+Izoh: O'zbekiston Markaziy Osiyoda joylashgan.
+
+2. Python nechinci yilda yaratilgan?
+A) 1985
+B) 1991 [TO'G'RI]
+C) 1995
+D) 2000
+Ball: 2
+
+--- QISM 2: KO'P JAVOBLI SAVOLLAR ---
+
+3. Quyidagilardan qaysilari OOP tamoyillari?
+TYPE: MULTI_SELECT
+A) Inkapsulyatsiya [TO'G'RI]
+B) Kompilyatsiya
+C) Meros olish [TO'G'RI]
+D) Polimorfizm [TO'G'RI]
+E) Interpretatsiya
+Izoh: OOP ning 4 asosiy tamoyili: Inkapsulyatsiya, Meros, Polimorfizm, Abstraktsiya.
+
+--- QISM 3: HA / YO'Q ---
+
+4. Internetni Tim Berners-Lee ixtiro qilgan.
+TYPE: TRUE_FALSE
+Javob: Ha
+Izoh: Tim Berners-Lee 1989-yilda Internetni (WWW) ixtiro qilgan.
+
+5. Farang tili Argentinaning rasmiy tili.
+TYPE: TRUE_FALSE
+Javob: Yo'q
+Izoh: Argentinaning rasmiy tili ispan tili.
+
+--- QISM 4: YOZMA JAVOB ---
+
+6. Dunyoning eng katta davlati?
+TYPE: TEXT_INPUT
+Javob: Rossiya
+Qabul_qilinadigan: rossiya, russia, российская федерация
+Izoh: Rossiya — 17.1 mln km² maydoni bilan dunyoning eng katta davlati.
+
+--- QISM 5: BO'SH JOYNI TO'LDIRISH ---
+
+7. Albert Einstein ___ nazariyasini kashf etgan.
+TYPE: FILL_BLANK
+Javob: nisbiylik
+Qabul_qilinadigan: nisbiylik, nisbiylik nazariyasi, relativity
+Izoh: Einstein 1905-yilda maxsus nisbiylik nazariyasini taklif qildi.
+
+--- QISM 6: MOSLASHTIRISH ---
+
+8. Ixtirolar va ixtirochilarni moslang:
+TYPE: MATCHING
+CHAP: Telefon | Graham Bell
+CHAP: Elektr lampa | Thomas Edison
+CHAP: Radioaktivlik | Mariya Kyuri
+CHAP: Evolyutsiya nazariyasi | Charles Darwin
+Izoh: Fan tarixidagi buyuk kashfiyotlar.
+
+--- QISM 7: TARTIBLASH ---
+
+9. Quyidagi sonlarni o'sish tartibida joylashtiring:
+TYPE: ORDERING
+1. 1
+2. 5
+3. 13
+4. 27
+5. 100
+Izoh: 1 < 5 < 13 < 27 < 100 — to'g'ri tartib.
+
+================================================================
+UMUMIY STATISTIKA (bu fayl uchun):
+- Bir javobli: 2 ta
+- Ko'p javobli: 1 ta
+- Ha/Yo'q: 2 ta
+- Yozma javob: 1 ta
+- Bo'sh joy: 1 ta
+- Moslashtirish: 1 ta
+- Tartiblash: 1 ta
+Jami: 9 ta savol
+================================================================

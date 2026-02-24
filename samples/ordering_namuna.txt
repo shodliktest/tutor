@@ -1,0 +1,58 @@
+================================================================
+📋 TARTIBLASH TESTI (ORDERING) — NAMUNA FAYL
+================================================================
+Fayl formati: TXT (UTF-8)
+Test turi: ordering
+
+QOIDALAR:
+- TYPE: ORDERING qatorini qo'shing
+- To'g'ri tartibda savollar ostida yozing (raqam bilan)
+- Foydalanuvchi virgul bilan ajratib tartibini yozadi
+================================================================
+
+1. Suv aylanish jarayonini to'g'ri tartibda joylashtiring:
+TYPE: ORDERING
+1. Suv bug'lanadi
+2. Bug' ko'tariladi
+3. Bulutlar hosil bo'ladi
+4. Yomg'ir yog'adi
+5. Suv yerga singadi
+Izoh: Suv aylanishi — gidrologik sikl deb ham ataladi.
+
+2. Dastur yaratish bosqichlarini tartibga keltiring:
+TYPE: ORDERING
+1. Muammoni aniqlash
+2. Talablarni yig'ish
+3. Dizayn qilish
+4. Kod yozish
+5. Test qilish
+6. Deploy qilish
+Izoh: SDLC — Software Development Life Cycle bosqichlari.
+
+3. O'zbekiston tarixidagi davlatlari qadimdan hozirgacha:
+TYPE: ORDERING
+1. Ahamoniylar
+2. Yunon-Baqtriya podsholigi
+3. Kushon imperiyasi
+4. So'g'diyona
+5. Somoniylar
+6. Temuriylar
+7. O'zbekiston Respublikasi
+Izoh: O'zbekiston hududidagi tarixiy davlatlar ketma-ketligi.
+
+4. Internet sahifa ochilish jarayoni:
+TYPE: ORDERING
+1. Brauzer DNS so'rovini yuboradi
+2. IP-manzil olinadi
+3. Server bilan TCP ulanish o'rnatiladi
+4. HTTP so'rov yuboriladi
+5. Server javob qaytaradi
+6. Brauzer HTML ni ko'rsatadi
+Izoh: Har bir web sahifani ochishda shu bosqichlar amalga oshadi.
+
+================================================================
+ESLATMA:
+- Foydalanuvchi elementlarni vergul bilan ajratib yozadi
+- Masalan: "Bug'lanadi, Bug' ko'tariladi, Bulutlar, Yomg'ir, Singadi"
+- To'liq to'g'ri tartib uchun to'liq ball beriladi
+================================================================

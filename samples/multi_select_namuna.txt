@@ -1,0 +1,55 @@
+================================================================
+📋 KO'P JAVOBLI TEST (MULTI-SELECT) — NAMUNA FAYL
+================================================================
+Fayl formati: TXT (UTF-8)
+Test turi: multi_select (bir nechta to'g'ri javob)
+
+QOIDALAR:
+- TYPE: MULTI_SELECT qatorini qo'shing
+- Bir nechta [TO'G'RI] belgisi bo'lishi mumkin
+- Ball avtomatik to'g'ri javoblar soniga qarab belgilanadi
+================================================================
+
+1. Quyidagilardan qaysilari dasturlash tillari?
+TYPE: MULTI_SELECT
+A) Python [TO'G'RI]
+B) HTML
+C) Java [TO'G'RI]
+D) CSS
+E) C++ [TO'G'RI]
+Izoh: HTML va CSS belgilash/uslublash tillari, dasturlash tillari emas.
+
+2. O'zbekistonning qo'shnilari qaysilar?
+TYPE: MULTI_SELECT
+A) Qozog'iston [TO'G'RI]
+B) Rossiya
+C) Tojikiston [TO'G'RI]
+D) Afg'oniston [TO'G'RI]
+E) Qirg'iziston [TO'G'RI]
+F) Turkmaniston [TO'G'RI]
+Izoh: O'zbekiston 5 ta davlat bilan chegaradosh.
+
+3. Quyidagilardan qaysilari Yevropa davlatlari?
+TYPE: MULTI_SELECT
+A) Germaniya [TO'G'RI]
+B) Braziliya
+C) Fransiya [TO'G'RI]
+D) Xitoy
+E) Italiya [TO'G'RI]
+F) Argentina
+
+4. Matematik amallar qaysilar?
+TYPE: MULTI_SELECT
+A) Qo'shish [TO'G'RI]
+B) Tarqatish
+C) Ayirish [TO'G'RI]
+D) Tahlil
+E) Ko'paytirish [TO'G'RI]
+F) Bo'lish [TO'G'RI]
+
+================================================================
+ESLATMA:
+- Kamida 2 ta [TO'G'RI] bo'lishi kerak
+- Foydalanuvchi barcha to'g'ri javoblarni tanlasa to'liq ball oladi
+- Qisman to'g'ri javob uchun qisman ball beriladi
+================================================================

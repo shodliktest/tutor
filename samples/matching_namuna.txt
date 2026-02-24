@@ -1,0 +1,52 @@
+================================================================
+📋 MOSLASHTIRISH TESTI (MATCHING) — NAMUNA FAYL
+================================================================
+Fayl formati: TXT (UTF-8)
+Test turi: matching
+
+QOIDALAR:
+- TYPE: MATCHING qatorini qo'shing
+- CHAP: Chap ustun | O'ng ustun (| bilan ajrating)
+- Foydalanuvchi: 1-A, 2-C, 3-B kabi javob yozadi
+================================================================
+
+1. Mamlakatlar va ularning poytaxtlarini moslang:
+TYPE: MATCHING
+CHAP: O'zbekiston | Toshkent
+CHAP: Rossiya | Moskva
+CHAP: Fransiya | Parij
+CHAP: Yaponiya | Tokiyo
+CHAP: Germaniya | Berlin
+Izoh: Har bir davlatning rasmiy poytaxti berilgan.
+
+2. Matematika formulalarini moslang:
+TYPE: MATCHING
+CHAP: Doira yuzasi | πr²
+CHAP: To'g'ri to'rtburchak yuzasi | a × b
+CHAP: Uchburchak yuzasi | (a × h) / 2
+CHAP: Kub hajmi | a³
+Izoh: Asosiy geometriya formulalari.
+
+3. Dasturlash tillari va ularni yaratganlarni moslang:
+TYPE: MATCHING
+CHAP: Python | Guido van Rossum
+CHAP: Java | James Gosling
+CHAP: C | Dennis Ritchie
+CHAP: JavaScript | Brendan Eich
+Izoh: Mashhur dasturlash tillari va ularning yaratuvchilari.
+
+4. Kimyoviy elementlar va belgilarini moslang:
+TYPE: MATCHING
+CHAP: Vodorod | H
+CHAP: Kislorod | O
+CHAP: Uglerod | C
+CHAP: Azot | N
+CHAP: Temir | Fe
+Izoh: Mendeleev jadvalidagi elementlar va ularning kimyoviy belgilari.
+
+================================================================
+ESLATMA:
+- Foydalanuvchi: 1-A, 2-D, 3-B, 4-C formatida yozadi
+- O'ng ustundagi variantlar bot tomonidan aralashtirilib ko'rsatiladi
+- Har bir to'g'ri juft uchun 1 ball beriladi
+================================================================
