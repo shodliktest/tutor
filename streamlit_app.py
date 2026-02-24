@@ -17,12 +17,35 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Firebase ishga tushirish
+# ══════════════════════════════════════════════════════════
+# 🔥 FIREBASE — bir marta ishga tushirish (cache_resource)
+# ══════════════════════════════════════════════════════════
 @st.cache_resource
 def init_firebase():
     return initialize_firebase()
 
+# ══════════════════════════════════════════════════════════
+# 🤖 BOT — alohida thread da ishga tushirish
+#   cache_resource: Streamlit qayta render qilsa ham
+#   bot qayta-qayta ishga tushmaydi (Singleton)
+# ══════════════════════════════════════════════════════════
+@st.cache_resource
+def start_bot_thread():
+    """
+    Telegram botni alohida daemon thread da ishga tushiradi.
+    - Singleton: faqat bir marta chaqiriladi
+    - WebhookKiller: eski webhook o'chiriladi
+    - Thread-safe: Streamlit event loop ga tegmaydi
+    """
+    try:
+        from bot import run_bot
+        thread = run_bot()
+        return thread
+    except Exception as e:
+        return None
+
 ok = init_firebase()
+_bot_thread = start_bot_thread()
 
 if not ok:
     st.error("❌ Firebase ulanmadi! Secrets ni tekshiring.")
@@ -58,6 +81,13 @@ st.markdown("""
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/quiz.png", width=80)
     st.title("🎓 Quiz Bot")
+
+    # Bot holati
+    if _bot_thread and _bot_thread.is_alive():
+        st.success("🤖 Bot: Ishlayapti ✅")
+    else:
+        st.error("🤖 Bot: Ishlamayapti ❌")
+
     st.divider()
     page = st.radio(
         "Bo'lim:",
@@ -273,6 +303,38 @@ database_url        = ""
 # ── Firebase Service Account ─────────────
 # Firebase Console → Project Settings →
 # Service accounts → Generate new private key
+[firebase_sa]
+type                        = "service_account"
+project_id                  = "your-project-id"
+private_key_id              = "abc123def456..."
+private_key                 = "-----BEGIN RSA PRIVATE KEY-----\\nMIIE...\\n-----END RSA PRIVATE KEY-----\\n"
+client_email                = "firebase-adminsdk-xxx@your-app.iam.gserviceaccount.com"
+client_id                   = "123456789012345678901"
+auth_uri                    = "https://accounts.google.com/o/oauth2/auth"
+token_uri                   = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url        = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxx%40your-app.iam.gserviceaccount.com"
+universe_domain             = "googleapis.com"
+    """, language="toml")
+
+    st.warning("""
+    ⚠️ **Muhim eslatmalar:**
+    - `private_key` dagi yangi qatorlar `\\n` sifatida yozilishi kerak
+    - Barcha qiymatlar qo'shtirnoq ichida bo'lishi kerak
+    - Faylni hech qachon GitHub ga yuklamang!
+    """)
+
+    st.divider()
+    st.subheader("🔍 Joriy secrets holati")
+    checks = {
+        "BOT_TOKEN":     bool(st.secrets.get("BOT_TOKEN")),
+        "ADMIN_IDS":     bool(st.secrets.get("ADMIN_IDS")),
+        "[firebase]":    "firebase" in st.secrets,
+        "[firebase_sa]": "firebase_sa" in st.secrets,
+    }
+    for k, v in checks.items():
+        st.write(f"{'✅' if v else '❌'} `{k}`")
+nts → Generate new private key
 [firebase_sa]
 type                        = "service_account"
 project_id                  = "your-project-id"
