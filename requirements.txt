@@ -1,7 +1,0 @@
-streamlit
-aiogram
-faster-whisper
-groq
-deep_translator
-pytz
-torch
