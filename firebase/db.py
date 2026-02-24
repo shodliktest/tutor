@@ -1,8 +1,8 @@
 """
 🗄️ FIREBASE DATABASE OPERATSIYALARI
-Barcha CRUD operatsiyalar shu yerda
+WHERE + ORDER_BY kombinatsiyasi YO'Q — index shart emas
+Barcha filtrlash Python tomonida amalga oshiriladi
 """
-from firebase_admin import firestore
 from firebase.config import get_db
 from datetime import datetime, timezone
 import logging
@@ -97,36 +97,30 @@ def get_test(test_id: str) -> dict:
 
 def get_tests_by_subject(subject: str, limit: int = 20) -> list:
     db = get_db()
-    # Faqat where — order_by yo'q (index shart emas)
-    tests = (db.collection("tests")
-               .where("subject", "==", subject)
-               .where("is_active", "==", True)
-               .limit(limit)
-               .stream())
+    # Faqat bitta where — index shart emas
+    tests = db.collection("tests").where("subject", "==", subject).limit(50).stream()
     result = [t.to_dict() for t in tests]
-    # Python tomonida tartiblash
+    # Python tomonida filtr va tartiblash
+    result = [t for t in result if t.get("is_active") and t.get("visibility") == "public"]
     result.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
-    return result
+    return result[:limit]
 
 
 def get_all_tests(limit: int = 50) -> list:
     db = get_db()
-    # order_by olib tashlandi — index muammosi yo'q
-    tests = (db.collection("tests")
-               .where("is_active", "==", True)
-               .limit(limit)
-               .stream())
+    # WHERE YO'Q — hammasini olib Python da filtr qilamiz
+    tests = db.collection("tests").limit(200).stream()
     result = [t.to_dict() for t in tests]
-    # Python tomonida tartiblash
+    # Python tomonida filtr
+    result = [t for t in result if t.get("is_active")]
     result.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
-    return result
+    return result[:limit]
 
 
 def get_my_tests(creator_id: int) -> list:
     db = get_db()
-    tests = (db.collection("tests")
-               .where("creator_id", "==", creator_id)
-               .stream())
+    # Bitta where — index shart emas
+    tests = db.collection("tests").where("creator_id", "==", creator_id).stream()
     result = [t.to_dict() for t in tests]
     result.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
     return result
@@ -172,29 +166,25 @@ def save_result(user_id: int, test_id: str, result_data: dict) -> str:
 
 def get_user_results(user_id: int, limit: int = 20) -> list:
     db = get_db()
-    # Faqat where — order_by yo'q
-    results = (db.collection("results")
-                 .where("user_id", "==", user_id)
-                 .limit(limit)
-                 .stream())
+    # Bitta where — index shart emas
+    results = db.collection("results").where("user_id", "==", user_id).limit(100).stream()
     result = [r.to_dict() for r in results]
     result.sort(key=lambda x: x.get("completed_at", datetime.min), reverse=True)
-    return result
+    return result[:limit]
 
 
 def get_test_results(test_id: str, limit: int = 50) -> list:
     db = get_db()
-    results = (db.collection("results")
-                 .where("test_id", "==", test_id)
-                 .limit(limit)
-                 .stream())
+    # Bitta where — index shart emas
+    results = db.collection("results").where("test_id", "==", test_id).limit(100).stream()
     result = [r.to_dict() for r in results]
     result.sort(key=lambda x: x.get("percentage", 0), reverse=True)
-    return result
+    return result[:limit]
 
 
 def get_attempt_count(user_id: int, test_id: str) -> int:
     db = get_db()
+    # Ikki where — lekin order_by yo'q, bu ishlaydi
     results = (db.collection("results")
                  .where("user_id", "==", user_id)
                  .where("test_id", "==", test_id)
@@ -238,8 +228,7 @@ def _update_leaderboard(user_id: int, test_id: str, percentage: float, score: fl
     lb_id = f"{user_id}_{test_id}"
     existing = db.collection("leaderboard").document(lb_id).get()
     if existing.exists:
-        current_best = existing.to_dict().get("best_percentage", 0)
-        if percentage > current_best:
+        if percentage > existing.to_dict().get("best_percentage", 0):
             db.collection("leaderboard").document(lb_id).update({
                 "best_percentage": percentage,
                 "best_score": score,
@@ -262,21 +251,18 @@ def _update_leaderboard(user_id: int, test_id: str, percentage: float, score: fl
 
 def get_leaderboard_by_test(test_id: str, limit: int = 10) -> list:
     db = get_db()
-    results = (db.collection("leaderboard")
-                 .where("test_id", "==", test_id)
-                 .limit(limit)
-                 .stream())
+    # Bitta where — index shart emas
+    results = db.collection("leaderboard").where("test_id", "==", test_id).limit(50).stream()
     result = [r.to_dict() for r in results]
     result.sort(key=lambda x: x.get("best_percentage", 0), reverse=True)
-    return result
+    return result[:limit]
 
 
 def get_global_leaderboard(limit: int = 20) -> list:
     db = get_db()
-    # where + order_by o'rniga — faqat limit bilan olib, Python da filtr
-    users = db.collection("users").limit(100).stream()
+    # WHERE YO'Q — hammasini olib Python da filtr
+    users = db.collection("users").limit(200).stream()
     result = [u.to_dict() for u in users]
-    # Faqat test ishlagan foydalanuvchilar
     result = [u for u in result if u.get("total_tests", 0) > 0]
     result.sort(key=lambda x: x.get("avg_score", 0), reverse=True)
     return result[:limit]
