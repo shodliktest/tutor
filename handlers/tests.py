@@ -53,7 +53,39 @@ async def browse_tests_handler(callback: CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=tests_list_keyboard(tests, user_results, subject))
 
-view_test_handler
+@router.callback_query(F.data.startswith("view_test_"))
+async def view_test_handler(callback: CallbackQuery):
+    await callback.answer()
+    test_id = callback.data.replace("view_test_", "")
+    test = get_test(test_id)
+    
+    if not test:
+        await callback.message.edit_text("❌ Test topilmadi yoki o'chirilgan.")
+        return
+        
+    questions = test.get("questions", [])
+    
+    # Python Syntax xato bermasligi uchun ma'lumotlarni alohida xavfsiz o'zgaruvchilarga olamiz
+    title = test.get("title", "Nomsiz")
+    difficulty = test.get("difficulty", "Nomalum").title()
+    time_limit = test.get("time_limit", 0)
+    passing_score = test.get("passing_score", 60)
+    max_attempts = test.get("max_attempts", 0)
+    
+    attempts_text = str(max_attempts) if max_attempts > 0 else "Cheklanmagan"
+    
+    text = (
+        f"📝 <b>{title}</b>\n\n"
+        f"📋 Savollar soni: <b>{len(questions)} ta</b>\n"
+        f"📊 Qiyinlik darajasi: <b>{difficulty}</b>\n"
+        f"⏱ Vaqt limiti: <b>{time_limit} daqiqa</b>\n"
+        f"🎯 O'tish foizi: <b>{passing_score}%</b>\n"
+        f"🔄 Ruxsat etilgan urinishlar: <b>{attempts_text}</b>\n\n"
+        f"<i>Boshlashga tayyormisiz?</i>"
+    )
+    await callback.message.edit_text(text, reply_markup=test_info_keyboard(test_id))
+
+
 # ==========================================================
 # 2. TESTNI BOSHLASH VA URINISHLARNI TEKSHIRISH
 # ==========================================================
@@ -101,7 +133,7 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
 
 # ==========================================================
 # 3. SAVOLLARNI YUBORISH (BARCHA 7 XIL TUR UCHUN)
-# ==========================================
+# ==========================================================
 
 async def send_next_question(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -158,7 +190,7 @@ async def send_next_question(message: Message, state: FSMContext):
         keyboard = finish_test_keyboard()
         await state.set_state(TestSolving.text_answer)
         
-    elif q_type == "text_input" or q_type == "fill_blank":
+    elif q_type in ["text_input", "fill_blank"]:
         text += "<i>✍️ Javobingizni oddiy xabar ko'rinishida yozib yuboring.</i>"
         keyboard = finish_test_keyboard()
         await state.set_state(TestSolving.text_answer)
@@ -283,7 +315,7 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
     user = get_user(user_id)
     user_name = user.get("name", "Foydalanuvchi") if user else "Foydalanuvchi"
     
-    # Xabarni formatlash (scoring.py dagi format_result_message funksiyasidan)
+    # Xabarni formatlash
     result_text = format_result_message(result, test, user_name)
     kb = result_keyboard(test.get("test_id"), result_id, result.get("passed", False))
     
