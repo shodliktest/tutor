@@ -28,7 +28,10 @@ from handlers.tests import (
     browse_tests_handler, take_test_handler,
     test_answer_handler, finish_test_handler
 )
-from handlers.create_test import create_test_start, upload_file_handler, manual_create_handler
+from handlers.create_test import (
+    create_test_start, upload_file_handler,
+    manual_create_handler, show_samples_handler, send_sample_file
+)
 from handlers.admin import admin_panel_handler
 from handlers.results import my_results_handler
 from handlers.leaderboard import leaderboard_handler
@@ -94,6 +97,10 @@ def _build_app() -> Application:
         allow_reentry=True,
     )
     app.add_handler(create_conv)
+
+    # Namuna fayllar
+    app.add_handler(CallbackQueryHandler(show_samples_handler, pattern="^show_samples$"))
+    app.add_handler(CallbackQueryHandler(send_sample_file,     pattern="^sample_"))
 
     # Callback querylar
     app.add_handler(CallbackQueryHandler(browse_tests_handler, pattern="^browse_"))
