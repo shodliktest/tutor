@@ -1,261 +1,189 @@
 """
-⌨️ INLINE KLAVIATURALAR
-Barcha bot klaviaturalari
+⌨️ INLINE KLAVIATURALAR (AIOGRAM 3)
+Barcha bot klaviaturalari to'liq moslashtirildi.
 """
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import SUBJECTS, DIFFICULTY_LEVELS, TEST_TYPES
 
-
-def main_menu_keyboard():
+def main_menu_keyboard(user_id: int = None) -> InlineKeyboardMarkup:
     """Asosiy menyu"""
-    keyboard = [
-        [
-            InlineKeyboardButton("📚 Testlar", callback_data="browse_all"),
-            InlineKeyboardButton("➕ Test Yaratish", callback_data="create_test")
-        ],
-        [
-            InlineKeyboardButton("📊 Natijalarim", callback_data="profile_results"),
-            InlineKeyboardButton("🏆 Reyting", callback_data="lb_global")
-        ],
-        [
-            InlineKeyboardButton("👤 Profil", callback_data="profile_view"),
-            InlineKeyboardButton("ℹ️ Yordam", callback_data="help")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def subjects_keyboard(callback_prefix="browse_subj_"):
-    """Fanlar klaviaturasi"""
-    keyboard = []
-    row = []
-    for i, subject in enumerate(SUBJECTS):
-        row.append(InlineKeyboardButton(subject, callback_data=f"{callback_prefix}{subject}"))
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="main_menu")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def difficulty_keyboard(callback_prefix="diff_"):
-    """Qiyinlik darajasi"""
-    keyboard = [
-        [InlineKeyboardButton(label, callback_data=f"{callback_prefix}{key}")]
-        for key, label in DIFFICULTY_LEVELS.items()
-    ]
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="create_back")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def test_type_keyboard():
-    """Test turi tanlash"""
-    keyboard = [
-        [InlineKeyboardButton(label, callback_data=f"type_{key}")]
-        for key, label in TEST_TYPES.items()
-    ]
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="create_back")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def visibility_keyboard():
-    """Ko'rinish darajasi"""
-    keyboard = [
-        [InlineKeyboardButton("🌍 Ommaviy", callback_data="vis_public")],
-        [InlineKeyboardButton("🔗 Link orqali", callback_data="vis_link")],
-        [InlineKeyboardButton("🔒 Faqat o'zim", callback_data="vis_private")],
-        [InlineKeyboardButton("◀️ Orqaga", callback_data="create_back")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def upload_method_keyboard():
-    """Fayl yuklash usuli"""
-    keyboard = [
-        [InlineKeyboardButton("📁 TXT fayl yuklash", callback_data="upload_txt")],
-        [InlineKeyboardButton("📄 PDF fayl yuklash", callback_data="upload_pdf")],
-        [InlineKeyboardButton("📝 DOCX fayl yuklash", callback_data="upload_docx")],
-        [InlineKeyboardButton("✏️ Qo'lda kiritish", callback_data="manual_create")],
-        [InlineKeyboardButton("📋 Namuna fayllarni ko'rish", callback_data="show_samples")],
-        [InlineKeyboardButton("◀️ Orqaga", callback_data="main_menu")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def tests_list_keyboard(tests: list, page: int = 0, subject: str = None):
-    """Testlar ro'yxati"""
-    keyboard = []
+    builder = InlineKeyboardBuilder()
     
-    # Har bir test uchun tugma
-    for test in tests:
-        title = test.get("title", "Nomsiz")[:35]
-        count = test.get("question_count", 0)
-        diff = {"easy": "🟢", "medium": "🟡", "hard": "🔴", "expert": "⚡"}.get(test.get("difficulty"), "⚪")
-        
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{diff} {title} ({count} ta savol)",
-                callback_data=f"test_info_{test['test_id']}"
-            )
-        ])
+    builder.row(
+        InlineKeyboardButton(text="📚 Testlar", callback_data="browse_all"),
+        InlineKeyboardButton(text="➕ Test Yaratish", callback_data="create_test")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📊 Natijalarim", callback_data="profile_results"),
+        InlineKeyboardButton(text="🏆 Reyting", callback_data="lb_global")
+    )
+    builder.row(
+        InlineKeyboardButton(text="👤 Profil", callback_data="profile_view"),
+        InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help")
+    )
     
-    # Navigatsiya
-    nav_row = []
-    if page > 0:
-        nav_row.append(InlineKeyboardButton("◀️", callback_data=f"browse_page_{page-1}_{subject or 'all'}"))
-    if len(tests) >= 10:
-        nav_row.append(InlineKeyboardButton("▶️", callback_data=f"browse_page_{page+1}_{subject or 'all'}"))
-    if nav_row:
-        keyboard.append(nav_row)
-    
-    keyboard.append([InlineKeyboardButton("🔙 Fanlar", callback_data="browse_subjects")])
-    return InlineKeyboardMarkup(keyboard)
+    # Admin tugmasi faqat adminlarga ko'rinadi
+    if user_id:
+        from config import ADMIN_IDS
+        if user_id in ADMIN_IDS:
+            builder.row(InlineKeyboardButton(text="👨‍💼 Admin Panel", callback_data="admin_panel"))
+            
+    return builder.as_markup()
 
-
-def test_info_keyboard(test_id: str, attempts_left: int = 3, is_creator: bool = False):
-    """Test ma'lumotlari sahifasi"""
-    keyboard = []
-    
-    if attempts_left > 0:
-        keyboard.append([
-            InlineKeyboardButton(
-                f"▶️ Testni boshlash ({attempts_left} urinish qoldi)",
-                callback_data=f"take_test_{test_id}"
-            )
-        ])
-    else:
-        keyboard.append([
-            InlineKeyboardButton("🚫 Urinishlar tugagan", callback_data="no_attempts")
-        ])
-    
-    keyboard.append([
-        InlineKeyboardButton("📊 Natijalari", callback_data=f"test_results_{test_id}"),
-        InlineKeyboardButton("🏆 Top 10", callback_data=f"lb_test_{test_id}")
-    ])
-    
-    if is_creator:
-        keyboard.append([
-            InlineKeyboardButton("✏️ Tahrirlash", callback_data=f"edit_test_{test_id}"),
-            InlineKeyboardButton("🗑 O'chirish", callback_data=f"delete_test_{test_id}")
-        ])
-    
-    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="browse_all")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def multiple_choice_keyboard(options: list, question_idx: int, answered: set = None):
-    """Bir javobli test klaviaturasi"""
-    keyboard = []
-    letters = ["A", "B", "C", "D", "E", "F"]
-    
-    for i, option in enumerate(options):
-        letter = letters[i] if i < len(letters) else str(i+1)
-        prefix = "✅" if (answered and i in answered) else "🔘"
-        
-        text = f"{prefix} {letter}) {option[:40]}"
-        keyboard.append([
-            InlineKeyboardButton(text, callback_data=f"ans_{question_idx}_{i}")
-        ])
-    
-    keyboard.append([
-        InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{question_idx}_skip"),
-    ])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def true_false_keyboard(question_idx: int):
-    """Ha/Yo'q klaviaturasi"""
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Ha (To'g'ri)", callback_data=f"ans_{question_idx}_0"),
-            InlineKeyboardButton("❌ Yo'q (Noto'g'ri)", callback_data=f"ans_{question_idx}_1")
-        ],
-        [InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{question_idx}_skip")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def multi_select_keyboard(options: list, question_idx: int, selected: set = None):
-    """Ko'p javobli test klaviaturasi"""
-    if selected is None:
-        selected = set()
-    keyboard = []
-    letters = ["A", "B", "C", "D", "E", "F"]
-    
-    for i, option in enumerate(options):
-        letter = letters[i] if i < len(letters) else str(i+1)
-        prefix = "✅" if i in selected else "⬜"
-        text = f"{prefix} {letter}) {option[:40]}"
-        keyboard.append([
-            InlineKeyboardButton(text, callback_data=f"multi_{question_idx}_{i}")
-        ])
-    
-    keyboard.extend([
-        [InlineKeyboardButton("✔️ Javobni tasdiqlash", callback_data=f"ans_{question_idx}_confirm")],
-        [InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data=f"ans_{question_idx}_skip")]
-    ])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def finish_test_keyboard(test_id: str):
-    """Test tugash klaviaturasi"""
-    keyboard = [
-        [InlineKeyboardButton("✅ Testni tugatish", callback_data=f"finish_{test_id}")],
-        [InlineKeyboardButton("◀️ Davom etish", callback_data=f"continue_test_{test_id}")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def result_keyboard(test_id: str, result_id: str, passed: bool):
-    """Natija sahifasi klaviaturasi"""
-    keyboard = [
-        [InlineKeyboardButton("📋 Batafsil tahlil", callback_data=f"detail_result_{result_id}")],
-        [InlineKeyboardButton("🔄 Qayta ishlash", callback_data=f"take_test_{test_id}")],
-        [InlineKeyboardButton("🏆 Leaderboard", callback_data=f"lb_test_{test_id}")],
-        [InlineKeyboardButton("🏠 Bosh sahifa", callback_data="main_menu")]
-    ]
-    
-    if passed:
-        keyboard.insert(1, [
-            InlineKeyboardButton("📜 Sertifikat", callback_data=f"cert_{result_id}")
-        ])
-    
-    return InlineKeyboardMarkup(keyboard)
-
-
-def admin_keyboard():
+def admin_keyboard() -> InlineKeyboardMarkup:
     """Admin panel klaviaturasi"""
-    keyboard = [
-        [
-            InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users"),
-            InlineKeyboardButton("📋 Testlar", callback_data="admin_tests")
-        ],
-        [
-            InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
-            InlineKeyboardButton("📢 Xabar yuborish", callback_data="admin_broadcast")
-        ],
-        [
-            InlineKeyboardButton("⚙️ Sozlamalar", callback_data="admin_settings"),
-            InlineKeyboardButton("🗑 Test o'chirish", callback_data="admin_delete_test")
-        ],
-        [InlineKeyboardButton("🏠 Bosh sahifa", callback_data="main_menu")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"),
+        InlineKeyboardButton(text="📋 Testlar", callback_data="admin_tests")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"),
+        InlineKeyboardButton(text="📢 Xabar yuborish", callback_data="admin_broadcast")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⚙️ Sozlamalar", callback_data="admin_settings"),
+        InlineKeyboardButton(text="🗑 Test o'chirish", callback_data="admin_delete_test")
+    )
+    builder.row(InlineKeyboardButton(text="🏠 Bosh sahifa", callback_data="main_menu"))
+    return builder.as_markup()
 
-
-def leaderboard_keyboard(current: str = "global"):
+def leaderboard_keyboard(current: str = "global") -> InlineKeyboardMarkup:
     """Leaderboard turi"""
-    keyboard = [
-        [
-            InlineKeyboardButton("🌍 Umumiy" + (" ✓" if current == "global" else ""), callback_data="lb_global"),
-            InlineKeyboardButton("📚 Fan bo'yicha" + (" ✓" if current == "subject" else ""), callback_data="lb_subject")
-        ],
-        [
-            InlineKeyboardButton("📅 Bu oy" + (" ✓" if current == "monthly" else ""), callback_data="lb_monthly"),
-            InlineKeyboardButton("🏆 Test bo'yicha" + (" ✓" if current == "test" else ""), callback_data="lb_by_test")
-        ],
-        [InlineKeyboardButton("🏠 Bosh sahifa", callback_data="main_menu")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🌍 Umumiy" + (" ✓" if current == "global" else ""), callback_data="lb_global"),
+        InlineKeyboardButton(text="📚 Fan bo'yicha" + (" ✓" if current == "subject" else ""), callback_data="lb_subject")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📅 Bu oy" + (" ✓" if current == "monthly" else ""), callback_data="lb_monthly"),
+        InlineKeyboardButton(text="🏆 Test bo'yicha" + (" ✓" if current == "test" else ""), callback_data="lb_by_test")
+    )
+    builder.row(InlineKeyboardButton(text="🏠 Bosh sahifa", callback_data="main_menu"))
+    return builder.as_markup()
+
+def subjects_keyboard(callback_prefix: str = "browse_subj_") -> InlineKeyboardMarkup:
+    """Fanlar klaviaturasi"""
+    builder = InlineKeyboardBuilder()
+    for subject in SUBJECTS:
+        builder.add(InlineKeyboardButton(text=subject, callback_data=f"{callback_prefix}{subject}"))
+    builder.adjust(2) # Tugmalarni 2 tadan qilib taxlaydi
+    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="main_menu"))
+    return builder.as_markup()
+
+def difficulty_keyboard(callback_prefix: str = "diff_") -> InlineKeyboardMarkup:
+    """Qiyinlik darajasi"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🟢 Oson", callback_data=f"{callback_prefix}easy"),
+        InlineKeyboardButton(text="🟡 O'rtacha", callback_data=f"{callback_prefix}medium"),
+        InlineKeyboardButton(text="🔴 Qiyin", callback_data=f"{callback_prefix}hard")
+    )
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    return builder.as_markup()
+
+def test_visibility_keyboard() -> InlineKeyboardMarkup:
+    """Test maxfiylik darajasini tanlash"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🌍 Ommaviy (Hamma ko'radi)", callback_data="vis_public"))
+    builder.row(InlineKeyboardButton(text="🔗 Link orqali (Faqat ssilka)", callback_data="vis_link"))
+    builder.row(InlineKeyboardButton(text="🔒 Shaxsiy (Faqat o'zingizga)", callback_data="vis_private"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    return builder.as_markup()
+
+def tests_list_keyboard(tests: list, user_results: list, subject: str, page: int = 1) -> InlineKeyboardMarkup:
+    """Testlar ro'yxati va urinishlar soni"""
+    builder = InlineKeyboardBuilder()
+    
+    for test in tests:
+        test_id = test.get("test_id")
+        title = test.get("title", "Nomsiz Test")
+        
+        # Foydalanuvchi bu testni necha marta yechganini hisoblash
+        attempts = sum(1 for r in user_results if r.get("test_id") == test_id)
+        status = f" (Yechilgan: {attempts} marta)" if attempts > 0 else " 🆕"
+        
+        builder.row(InlineKeyboardButton(text=f"{title}{status}", callback_data=f"view_test_{test_id}"))
+        
+    builder.row(InlineKeyboardButton(text="◀️ Fanlar ro'yxatiga", callback_data="browse_subjects"))
+    return builder.as_markup()
+
+def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
+    """Test ma'lumotlari ostidagi tugmalar"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="▶️ Testni boshlash", callback_data=f"start_test_{test_id}"))
+    builder.row(
+        InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}"),
+        InlineKeyboardButton(text="◀️ Orqaga", callback_data="browse_all")
+    )
+    return builder.as_markup()
+
+def result_keyboard(test_id: str, result_id: str, passed: bool) -> InlineKeyboardMarkup:
+    """Test yakunlangandagi tugmalar"""
+    builder = InlineKeyboardBuilder()
+    
+    # Agar foydalanuvchi o'tish foizidan o'tgan bo'lsa, sertifikat tugmasi chiqadi
+    if passed:
+        builder.row(InlineKeyboardButton(text="🎓 Sertifikatni yuklab olish", callback_data=f"cert_{result_id}"))
+        
+    builder.row(
+        InlineKeyboardButton(text="🔄 Qaytadan ishlash", callback_data=f"view_test_{test_id}"),
+        InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}")
+    )
+    builder.row(InlineKeyboardButton(text="🏠 Bosh sahifa", callback_data="main_menu"))
+    return builder.as_markup()
+
+def finish_test_keyboard() -> InlineKeyboardMarkup:
+    """Test yechish jarayonida ixtiyoriy yakunlash tugmasi"""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    return builder.as_markup()
+
+def upload_method_keyboard() -> InlineKeyboardMarkup:
+    """Test yaratish usulini tanlash"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📂 Fayl yuklash (TXT, DOCX, PDF)", callback_data="upload_file"),
+        InlineKeyboardButton(text="✍️ Qo'lda yaratish", callback_data="manual_create")
+    )
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    return builder.as_markup()
+
+# ══════════════════════════════════════════════════════════
+# 🎯 TEST YECHISH JARAYONIDAGI JAVOB TUGMALARI
+# ══════════════════════════════════════════════════════════
+
+def multiple_choice_keyboard(options: list, question_index: int) -> InlineKeyboardMarkup:
+    """1 to'g'ri javobli test uchun A, B, C, D tugmalari"""
+    builder = InlineKeyboardBuilder()
+    for opt in options:
+        # "A) Variant" dan faqat "A)" ni ajratib olamiz
+        letter = opt.split(')')[0] + ')' if ')' in opt else opt[:2]
+        builder.add(InlineKeyboardButton(text=letter, callback_data=f"ans_{question_index}_{letter}"))
+    builder.adjust(2) # 2 tadan qilib joylash
+    return builder.as_markup()
+
+def true_false_keyboard(question_index: int) -> InlineKeyboardMarkup:
+    """Ha/Yo'q testi uchun tugmalar"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="✅ Ha", callback_data=f"ans_{question_index}_Ha"),
+        InlineKeyboardButton(text="❌ Yo'q", callback_data=f"ans_{question_index}_Yo'q")
+    )
+    return builder.as_markup()
+
+def multi_select_keyboard(options: list, question_index: int, selected: list = None) -> InlineKeyboardMarkup:
+    """Ko'p javobli test uchun tugmalar (Belgilanganlariga ✅ qoyiladi)"""
+    if selected is None:
+        selected = []
+        
+    builder = InlineKeyboardBuilder()
+    for opt in options:
+        letter = opt.split(')')[0] + ')' if ')' in opt else opt[:2]
+        mark = " ✅" if letter in selected else ""
+        builder.add(InlineKeyboardButton(text=f"{letter}{mark}", callback_data=f"msel_{question_index}_{letter}"))
+        
+    builder.adjust(2)
+    builder.row(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"next_{question_index}"))
+    return builder.as_markup()
