@@ -10,6 +10,8 @@ import asyncio
 import sys
 import threading
 import traceback
+# Eski admin.py bilan adashib ketmasligi uchun bot_admin dan chaqiramiz:
+from handlers.bot_admin import router as admin_router
 
 # ══════════════════════════════════════════════════════════
 # 1. LOGGING (TERMINALNI TOZALASH VA XATOLARNI YOZISH)
