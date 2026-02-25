@@ -287,13 +287,24 @@ async def analysis_handler(callback: CallbackQuery):
     result_id = callback.data.replace("analysis_", "")
     res_doc = get_db().collection("results").document(result_id).get()
     
-    if not res_doc.exists: return await callback.message.answer("❌ Natija topilmadi.")
+    if not res_doc.exists: 
+        return await callback.message.answer("❌ Natija topilmadi.")
         
     res_data = res_doc.to_dict()
     detailed = res_data.get("detailed_results", [])
     test = get_test(res_data.get("test_id"))
     questions = test.get("questions", []) if test else []
     
+    # 🛡️ YANGILIK: Agar eski test bo'lsa (batafsil javoblar saqlanmagan bo'lsa)
+    if not detailed:
+        await callback.message.answer(
+            "⚠️ <b>Kechirasiz!</b>\n\n"
+            "Bu eski test natijasi bo'lgani uchun, uning batafsil tahlili (qaysi savolga nima belgilaganingiz) bazada saqlanmagan.\n\n"
+            "<i>Yangi test ishlab ko'ring, barcha javoblar va izohlar to'liq chiqadi!</i>", 
+            parse_mode="HTML"
+        )
+        return
+
     # TXT fayl o'rniga chatga bo'lib-bo'lib yuborish
     chunks = []
     current_chunk = f"📝 <b>{test.get('title', 'Test').upper()} - TAHLIL</b>\n{'━'*20}\n\n"
@@ -326,4 +337,4 @@ async def analysis_handler(callback: CallbackQuery):
     # 🛡️ PROTECT_CONTENT=TRUE bilan tahlilni chatga yuborish
     for chunk in chunks:
         await callback.message.answer(chunk, parse_mode="HTML", protect_content=True)
-    
+            
