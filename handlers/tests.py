@@ -1,7 +1,6 @@
 """
-🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - PRO VERSIYA)
-Agar izoh bo'lmasa, avtomatik ravishda keyingi savolga o'tkazib yuboradigan
-aqlli tushuntirish (explanation) mexanizmi bilan.
+🎮 TEST ISHLASH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
+Doimiy menyudagi "📚 Testlar" tugmasiga ulangan to'liq versiya.
 Hech narsa qisqartirilmadi.
 """
 import time
@@ -23,8 +22,17 @@ from keyboards.keyboards import (
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.callback_query(F.data.in_(["browse_all", "browse_subjects"]))
-async def browse_subjects_handler(callback: CallbackQuery):
+# ==========================================================
+# 1. TESTLARNI QIDIRISH VA KO'RISH (DOIMIY MENYU ORQALI)
+# ==========================================================
+
+@router.message(F.text == "📚 Testlar")
+async def browse_subjects_handler_msg(message: Message):
+    await message.answer("📚 <b>FANLAR RO'YXATI</b>\n\nQaysi fan bo'yicha test ishlashni xohlaysiz?", reply_markup=subjects_keyboard())
+
+# Orqaga qaytish (Inline tugma) uchun zaxira
+@router.callback_query(F.data == "browse_all")
+async def browse_subjects_handler_cb(callback: CallbackQuery):
     await callback.answer()
     await callback.message.edit_text("📚 <b>FANLAR RO'YXATI</b>\n\nQaysi fan bo'yicha test ishlashni xohlaysiz?", reply_markup=subjects_keyboard())
 
@@ -33,11 +41,15 @@ async def browse_tests_handler(callback: CallbackQuery):
     await callback.answer()
     subject = callback.data.replace("browse_subj_", "")
     db = get_db()
+    
+    # Hozircha faqat ommaviy testlarni ko'rsatamiz
     tests_ref = db.collection("tests").where("category", "==", subject).where("visibility", "==", "public").stream()
     tests = [t.to_dict() for t in tests_ref]
+    
     if not tests:
         await callback.message.edit_text(f"📭 Hozircha <b>{subject}</b> fani bo'yicha ommaviy testlar yo'q.", reply_markup=subjects_keyboard())
         return
+        
     user_results = get_user_results(callback.from_user.id)
     await callback.message.edit_text(f"📂 <b>{subject}</b> fanidan testlar:\nKerakli testni tanlang:", reply_markup=tests_list_keyboard(tests, user_results, subject))
 
@@ -68,6 +80,11 @@ async def view_test_handler(callback: CallbackQuery):
         f"<i>Boshlashga tayyormisiz?</i>"
     )
     await callback.message.edit_text(text, reply_markup=test_info_keyboard(test_id))
+
+
+# ==========================================================
+# 2. TESTNI BOSHLASH
+# ==========================================================
 
 @router.callback_query(F.data.startswith("start_test_"))
 async def start_test_handler(callback: CallbackQuery, state: FSMContext):
@@ -149,9 +166,9 @@ async def send_next_question(message: Message, state: FSMContext):
     await state.update_data(last_msg_id=msg.message_id)
 
 
-# ---------------------------------------------------------
-# INTERAKTIV TUSHUNTIRISH YASOVCHI FUNKSIYA (AQLLI VERSIYA)
-# ---------------------------------------------------------
+# ==========================================================
+# 3. INTERAKTIV TUSHUNTIRISH YASOVCHI FUNKSIYA
+# ==========================================================
 async def show_explanation(message_obj, state: FSMContext, q_idx: int, user_ans, is_edit=True):
     state_data = await state.get_data()
     q = state_data["questions"][q_idx]
@@ -168,7 +185,6 @@ async def show_explanation(message_obj, state: FSMContext, q_idx: int, user_ans,
         await send_next_question(message_obj, state)
         return
 
-    # Agar izoh bo'lsa, uni ko'rsatish mantiqi:
     is_correct, _ = _check_answer(q, user_ans)
     status_emoji = "✅ <b>TO'G'RI JAVOB!</b>" if is_correct else "❌ <b>XATO JAVOB!</b>"
     
@@ -220,7 +236,6 @@ async def handle_button_answer(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_reply_markup(reply_markup=kb)
         return
 
-    # Multi-select dagi 'Keyingi' tugmasi bosilganda ham tushuntirish ishlaydi
     if data.startswith("next_"):
         parts = data.split("_")
         q_idx = int(parts[1])
@@ -277,7 +292,7 @@ async def finish_from_explanation(callback: CallbackQuery, state: FSMContext):
 
 
 # ==========================================================
-# 5. NATIJANI HISOBLASH
+# 4. NATIJANI HISOBLASH VA TAHLIL
 # ==========================================================
 async def finish_test_process(message: Message, state: FSMContext, state_data: dict):
     test = state_data.get("test_data", {})
@@ -301,10 +316,6 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
     await message.answer(result_text, reply_markup=kb)
     await state.clear()
 
-
-# ==========================================================
-# 6. TAHLIL VA IZOHLAR (TXT FAYL)
-# ==========================================================
 @router.callback_query(F.data.startswith("analysis_"))
 async def analysis_handler(callback: CallbackQuery):
     await callback.answer("⏳ Tahlil fayli tayyorlanmoqda...")
@@ -344,3 +355,4 @@ async def analysis_handler(callback: CallbackQuery):
     file_obj = io.BytesIO(text.encode('utf-8'))
     doc = BufferedInputFile(file_obj.getvalue(), filename=f"Tahlil_{result_id}.txt")
     await callback.message.answer_document(document=doc, caption="📊 <b>Test bo'yicha batafsil tahlil.</b>", parse_mode="HTML")
+    
