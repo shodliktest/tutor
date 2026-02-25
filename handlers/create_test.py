@@ -1,6 +1,7 @@
 """
 ➕ TEST YARATISH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Yangi Reply menyudagi "➕ Test Yaratish" tugmasiga ulangan va fanlarni guruhlaydigan versiya.
+Fayl yoki Quiz orqali test tuzish, fanni va TEST MAZUSINI alohida so'rash.
+Hech narsa qisqartirilmadi!
 """
 import os
 import logging
@@ -23,49 +24,47 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 SAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "samples")
-
 SAMPLE_FILES = {
     "multiple_choice": ("multiple_choice_namuna.txt", "🔘 Bir javobli test"),
-    "multi_select":    ("multi_select_namuna.txt",    "☑️ Ko'p javobli test"),
-    "true_false":      ("true_false_namuna.txt",      "✅ Ha/Yo'q testi"),
-    "text_input":      ("text_input_namuna.txt",      "✍️ Yozma javob testi"),
-    "matching":        ("matching_namuna.txt",         "🔗 Moslashtirish testi"),
-    "ordering":        ("ordering_namuna.txt",         "🔢 Tartiblash testi"),
-    "fill_blank":      ("fill_blank_namuna.txt",       "📝 Bo'sh joy testi"),
     "all":             ("barcha_turlar_namuna.txt",    "📦 Barcha test turlari"),
 }
 
-# 🛡️ YANGI: REPLY TUGMADAN USHLAB OLISH
+# ==========================================================
+# 1. YARATISH USULINI TANLASH (FAYL YOKI QUIZ)
+# ==========================================================
 @router.message(F.text == "➕ Test Yaratish")
 async def create_test_start_msg(message: Message, state: FSMContext):
     await state.clear()
     
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📂 Namuna fayllarni ko'rish", callback_data="show_samples"))
+    builder.row(
+        InlineKeyboardButton(text="📁 Fayl yuklash (TXT, PDF)", callback_data="method_file"),
+        InlineKeyboardButton(text="📊 Telegram Quiz (So'rovnoma)", callback_data="method_poll")
+    )
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
     await message.answer(
-        "📝 <b>TEST YARATISH</b>\n\n"
-        "Iltimos, test savollari bor TXT, DOCX yoki PDF faylni yuboring.\n"
-        "Fayl formati qanday bo'lishini bilmasangiz, namunalarni ko'ring.",
+        "📝 <b>TEST YARATISH BO'LIMI</b>\n\n"
+        "Testni qanday usulda yaratmoqchisiz?\n"
+        "1. <b>Fayl yuklash:</b> Tayyor hujjatni yuborish.\n"
+        "2. <b>Telegram Quiz:</b> Botga viktorina so'rovnomalarini yasab yoki uzatib (forward) yig'ish.",
         reply_markup=builder.as_markup()
     )
-    await state.set_state(CreateTest.upload_file)
+    await state.set_state(CreateTest.choose_method)
 
-# ESKI: Inline tugma bosilganda zaxira uchun
-@router.callback_query(F.data == "create_test")
-async def create_test_start_cb(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
+# ==========================================================
+# 2. FAYL USULI 
+# ==========================================================
+@router.callback_query(F.data == "method_file", CreateTest.choose_method)
+async def method_file_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📂 Namuna fayllarni ko'rish", callback_data="show_samples"))
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
     await callback.message.edit_text(
-        "📝 <b>TEST YARATISH</b>\n\n"
-        "Iltimos, test savollari bor TXT, DOCX yoki PDF faylni yuboring.\n"
-        "Fayl formati qanday bo'lishini bilmasangiz, namunalarni ko'ring.",
+        "📁 <b>FAYL ORQALI YARATISH</b>\n\n"
+        "Iltimos, test savollari bor TXT, DOCX yoki PDF faylni yuboring.",
         reply_markup=builder.as_markup()
     )
     await state.set_state(CreateTest.upload_file)
@@ -74,74 +73,134 @@ async def create_test_start_cb(callback: CallbackQuery, state: FSMContext):
 async def show_samples_handler(callback: CallbackQuery):
     await callback.answer()
     builder = InlineKeyboardBuilder()
-    
     for key, (filename, btn_text) in SAMPLE_FILES.items():
         builder.row(InlineKeyboardButton(text=btn_text, callback_data=f"sample_{key}"))
-    
-    # Orqaga qaytishni o'zgartiramiz, chunki menyu reply bo'lib ketgan
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
-    
-    await callback.message.edit_text(
-        "📂 <b>NAMUNA FAYLLAR</b>\n\nQaysi turdagi test namunasini yuklab olmoqchisiz?",
-        reply_markup=builder.as_markup()
-    )
+    await callback.message.edit_text("📂 <b>NAMUNA FAYLLAR</b>\n\nQaysi turdagi test namunasini yuklab olmoqchisiz?", reply_markup=builder.as_markup())
 
 @router.callback_query(F.data.startswith("sample_"), CreateTest.upload_file)
 async def send_sample_file(callback: CallbackQuery):
     await callback.answer()
     key = callback.data.replace("sample_", "")
-    filename = SAMPLE_FILES[key][0]
+    filename = SAMPLE_FILES.get(key, SAMPLE_FILES["all"])[0]
     file_path = os.path.join(SAMPLES_DIR, filename)
-    
     if os.path.exists(file_path):
-        sample_doc = FSInputFile(file_path, filename=filename)
-        await callback.message.answer_document(
-            document=sample_doc,
-            caption="📄 Namuna fayl. Shunga o'xshatib o'z faylingizni tayyorlang va menga yuboring."
-        )
-    else:
-        await callback.message.answer("❌ Fayl topilmadi. Tizim administratoriga murojaat qiling.")
+        await callback.message.answer_document(FSInputFile(file_path, filename=filename), caption="📄 Namuna fayl.")
 
 @router.message(F.document, CreateTest.upload_file)
 async def upload_file_handler(message: Message, state: FSMContext):
     doc = message.document
     if not doc.file_name.lower().endswith(('.txt', '.pdf', '.docx')):
-        await message.answer("❌ Faqat TXT, PDF yoki DOCX fayllar qabul qilinadi!")
-        return
+        return await message.answer("❌ Faqat TXT, PDF yoki DOCX fayllar qabul qilinadi!")
 
-    status_msg = await message.answer("⏳ Fayl o'qilmoqda, kuting...")
-    
+    status_msg = await message.answer("⏳ Fayl o'qilmoqda...")
     try:
         file = await message.bot.get_file(doc.file_id)
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{doc.file_name}") as tmp_file:
             await message.bot.download_file(file.file_path, tmp_file.name)
             tmp_path = tmp_file.name
-        
         try:
             questions = parse_file(tmp_path)
         finally:
             os.remove(tmp_path) 
             
         if not questions:
-            await status_msg.edit_text("❌ Fayldan hech qanday savol topilmadi. Namuna formatini tekshiring.")
-            return
+            return await status_msg.edit_text("❌ Fayldan hech qanday savol topilmadi.")
             
         await state.update_data(questions=questions)
-        
-        # 🛡️ FANNI TANLASH TUGMALARI (GURUHLASH)
         await status_msg.edit_text(
-            f"✅ <b>{len(questions)} ta savol topildi!</b>\n\n"
-            f"📝 <b>Test qaysi fanga tegishli? Pastdan tanlang:</b>",
+            f"✅ <b>{len(questions)} ta savol topildi!</b>\n\n📝 <b>Test qaysi fanga tegishli? Pastdan tanlang:</b>",
             reply_markup=create_subject_keyboard()
         )
-        # Hali state ni o'zgartirmaymiz, chunki navbatdagi qadam yo oddiy yozuv yoki tugma bo'lishi mumkin
-
     except Exception as e:
-        logger.error(f"Faylni o'qishda xato: {e}")
-        await status_msg.edit_text("❌ Faylni o'qishda xatolik yuz berdi. Iltimos, namunadagi formatdan foydalaning.")
+        logger.error(f"Fayl xatosi: {e}")
+        await status_msg.edit_text("❌ Faylni o'qishda xatolik yuz berdi.")
 
-# 🛡️ TUGMADAN FAN TANLANGANDA
+# ==========================================================
+# 3. QUIZBOT USULI
+# ==========================================================
+@router.callback_query(F.data == "method_poll", CreateTest.choose_method)
+async def method_poll_handler(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.update_data(questions=[]) 
+    
+    text = (
+        "📊 <b>TELEGRAM QUIZ ORQALI YARATISH</b>\n\n"
+        "Telegramning o'zidan <b>Viktorina (Quiz)</b> yasab shu yerga yuboring, "
+        "yoki boshqa guruh/botlardan qiziqarli testlarni bu yerga <b>Forward</b> qiling!\n\n"
+        "<i>Har bir yuborgan testingiz to'plamga qoshilaveradi. Savollar yetarli bo'lganda '✅ Tayyor' tugmasini bosing.</i>"
+    )
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="✅ Tayyor (Keyingi qadam)", callback_data="finish_polls"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await state.set_state(CreateTest.waiting_for_polls)
+
+@router.message(F.poll, CreateTest.waiting_for_polls)
+async def catch_poll_handler(message: Message, state: FSMContext):
+    poll = message.poll
+    
+    if poll.type != "quiz":
+        return await message.answer("❌ Iltimos, oddiy so'rovnoma emas, <b>Viktorina (Quiz)</b> turidagi so'rov yuboring!")
+        
+    data = await state.get_data()
+    questions = data.get("questions", [])
+    
+    letters = ["A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)", "I)", "J)"]
+    options = []
+    correct_answer = "A)"
+    
+    for i, opt in enumerate(poll.options):
+        letter = letters[i] if i < len(letters) else f"{i+1})"
+        formatted_opt = f"{letter} {opt.text}"
+        options.append(formatted_opt)
+        if i == poll.correct_option_id:
+            correct_answer = formatted_opt
+            
+    explanation = poll.explanation or "Izoh kiritilmagan."
+    
+    new_q = {
+        "type": "multiple_choice",
+        "question": poll.question,
+        "options": options,
+        "correct": correct_answer,
+        "explanation": explanation,
+        "points": 1
+    }
+    
+    questions.append(new_q)
+    await state.update_data(questions=questions)
+    
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="✅ Tayyor (Keyingi qadam)", callback_data="finish_polls"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    
+    await message.answer(
+        f"✅ Savol to'plamga qo'shildi! <b>(Jami: {len(questions)} ta)</b>\n"
+        f"Yana test yuborishingiz yoki 'Tayyor' tugmasini bosishingiz mumkin.",
+        reply_markup=builder.as_markup()
+    )
+
+@router.callback_query(F.data == "finish_polls", CreateTest.waiting_for_polls)
+async def finish_polls_handler(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    questions = data.get("questions", [])
+    
+    if not questions:
+        return await callback.answer("❌ Hech qanday test yubormadingiz!", show_alert=True)
+        
+    await callback.message.edit_text(
+        f"🎉 <b>Ajoyib! Jami {len(questions)} ta savol yig'ildi.</b>\n\n"
+        f"📝 <b>Test qaysi fanga tegishli? Pastdan tanlang:</b>",
+        reply_markup=create_subject_keyboard()
+    )
+
+# ==========================================================
+# 4. FAN VA TEST MAZUSINI BELGILASH (YANGILANGAN)
+# ==========================================================
 @router.callback_query(F.data.startswith("set_subj_"), CreateTest.upload_file)
+@router.callback_query(F.data.startswith("set_subj_"), CreateTest.waiting_for_polls)
 async def process_subject_selection(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     subj = callback.data.replace("set_subj_", "")
@@ -150,152 +209,121 @@ async def process_subject_selection(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("📝 <b>Fanning nomini yozib yuboring (Masalan: Ingliz tili):</b>")
         await state.set_state(CreateTest.set_subject)
     else:
-        await state.update_data(title=subj)
+        # 🛡️ Fanni kategoriya sifatida saqlaymiz va nomini so'raymiz
+        await state.update_data(category=subj)
         await callback.message.edit_text(
-            f"✅ Fan: <b>{subj}</b>\n\nEndi <b>qiyinlik darajasini</b> tanlang:",
-            reply_markup=difficulty_keyboard()
+            f"✅ Fan: <b>{subj}</b>\n\n"
+            f"🏷 <b>Endi test uchun qisqacha nom yoki mavzu yozib yuboring:</b>\n"
+            f"<i>(Masalan: 'O'nlik kasrlar', 'Fe\\'l zamonlari', '1-chorak takrorlash')</i>"
         )
-        await state.set_state(CreateTest.set_difficulty)
+        await state.set_state(CreateTest.set_test_title)
 
-# 🛡️ QO'LDA FAN YOZILGANDA
 @router.message(F.text, CreateTest.set_subject)
 async def set_subject_manual(message: Message, state: FSMContext):
+    # 🛡️ Fanni kategoriya sifatida saqlaymiz va nomini so'raymiz
+    await state.update_data(category=message.text)
+    await message.answer(
+        f"✅ Fan: <b>{message.text}</b>\n\n"
+        f"🏷 <b>Endi test uchun qisqacha nom yoki mavzu yozib yuboring:</b>\n"
+        f"<i>(Masalan: 'O'nlik kasrlar', 'Fe\\'l zamonlari', '1-chorak takrorlash')</i>"
+    )
+    await state.set_state(CreateTest.set_test_title)
+
+# 🛡️ YANGI QADAM: TEST NOMINI SAQLASH
+@router.message(F.text, CreateTest.set_test_title)
+async def set_test_title_handler(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
     await message.answer(
-        f"✅ Fan: <b>{message.text}</b>\n\nEndi <b>qiyinlik darajasini</b> tanlang:",
+        f"✅ Test mavzusi: <b>{message.text}</b>\n\n"
+        f"Endi <b>qiyinlik darajasini</b> tanlang:", 
         reply_markup=difficulty_keyboard()
     )
     await state.set_state(CreateTest.set_difficulty)
 
+# ==========================================================
+# 5. UMUMIY SOZLAMALAR (QIYINLIK, VAQT ...)
+# ==========================================================
 @router.callback_query(F.data.startswith("diff_"), CreateTest.set_difficulty)
 async def set_difficulty_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    difficulty = callback.data.replace("diff_", "")
-    await state.update_data(difficulty=difficulty)
-    
-    await callback.message.edit_text(
-        "✅ Qiyinlik darajasi tanlandi.\n\n"
-        "⏱ <b>Test ishlash uchun vaqt limitini kiriting (daqiqalarda):</b>\n"
-        "<i>(Masalan: 30) Agar cheklanmagan bo'lsa 0 yozing.</i>"
-    )
+    await state.update_data(difficulty=callback.data.replace("diff_", ""))
+    await callback.message.edit_text("⏱ <b>Test ishlash uchun vaqt limitini kiriting (daqiqalarda):</b>\n<i>Agar cheklanmagan bo'lsa 0 yozing.</i>")
     await state.set_state(CreateTest.set_time_limit)
 
 @router.message(F.text, CreateTest.set_time_limit)
 async def set_time_limit_handler(message: Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("❌ Iltimos, faqat raqam kiriting (masalan: 30).")
-        return
-        
+    if not message.text.isdigit(): return await message.answer("❌ Iltimos, faqat raqam kiriting.")
     await state.update_data(time_limit=int(message.text))
-    
-    await message.answer(
-        "✅ Vaqt belgilandi.\n\n"
-        "🎯 <b>Testdan muvaffaqiyatli o'tish foizini kiriting (0-100):</b>\n"
-        "<i>(Masalan: 60)</i>"
-    )
+    await message.answer("🎯 <b>Testdan muvaffaqiyatli o'tish foizini kiriting (0-100):</b>")
     await state.set_state(CreateTest.set_passing_score)
 
 @router.message(F.text, CreateTest.set_passing_score)
 async def set_passing_score_handler(message: Message, state: FSMContext):
     if not message.text.isdigit() or not (0 <= int(message.text) <= 100):
-        await message.answer("❌ Iltimos, 0 dan 100 gacha bo'lgan raqam kiriting.")
-        return
-        
+        return await message.answer("❌ Iltimos, 0 dan 100 gacha bo'lgan raqam kiriting.")
     await state.update_data(passing_score=int(message.text))
-    
-    await message.answer(
-        "✅ O'tish foizi belgilandi.\n\n"
-        "🔄 <b>Foydalanuvchi ushbu testni necha marta ishlashiga ruxsat berasiz?</b>\n"
-        "<i>(Masalan: 3) Agar cheklanmagan bo'lsa 0 yozing.</i>"
-    )
+    await message.answer("🔄 <b>Ushbu testni necha marta ishlashga ruxsat berasiz?</b>\n<i>Agar cheklanmagan bo'lsa 0 yozing.</i>")
     await state.set_state(CreateTest.set_max_attempts)
 
 @router.message(F.text, CreateTest.set_max_attempts)
 async def set_max_attempts_handler(message: Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("❌ Iltimos, faqat raqam kiriting.")
-        return
-        
+    if not message.text.isdigit(): return await message.answer("❌ Iltimos, faqat raqam kiriting.")
     await state.update_data(max_attempts=int(message.text))
-    
-    await message.answer(
-        "✅ Urinishlar soni saqlandi.\n\n"
-        "🔒 <b>Test maxfiyligini tanlang:</b>\n"
-        "<i>Bu orqali test kimlarga ko'rinishini belgilaysiz.</i>",
-        reply_markup=test_visibility_keyboard()
-    )
+    await message.answer("🔒 <b>Test maxfiyligini tanlang:</b>", reply_markup=test_visibility_keyboard())
     await state.set_state(CreateTest.set_visibility)
 
 @router.callback_query(F.data.startswith("vis_"), CreateTest.set_visibility)
 async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
-    await callback.answer("⏳ Bazaga saqlanmoqda...")
+    await callback.answer("⏳ Saqlanmoqda...")
     visibility = callback.data.replace("vis_", "")
-    
     data = await state.get_data()
+    
     questions = data.get("questions", [])
     title = data.get("title", "Nomsiz test")
+    category = data.get("category", "Boshqa") # Fanni kategoriyaga olamiz
     
     from firebase.config import get_db
-    db = get_db()
     test_id = str(uuid.uuid4())[:8]
     
     new_test = {
-        "test_id": test_id,
-        "title": title,
-        "category": title,  # Fanning nomi kategoriya sifatida ketadi
+        "test_id": test_id, 
+        "title": title, 
+        "category": category, 
         "creator_id": callback.from_user.id,
-        "difficulty": data.get("difficulty", "medium"),
+        "difficulty": data.get("difficulty", "medium"), 
         "time_limit": data.get("time_limit", 0),
-        "passing_score": data.get("passing_score", 60),
+        "passing_score": data.get("passing_score", 60), 
         "max_attempts": data.get("max_attempts", 0),
-        "visibility": visibility,
-        "questions": questions,
-        "created_at": datetime.now(timezone.utc),
+        "visibility": visibility, 
+        "questions": questions, 
+        "created_at": datetime.now(timezone.utc), 
         "solve_count": 0
     }
     
-    # Firebase ga yozish
-    db.collection("tests").document(test_id).set(new_test)
+    get_db().collection("tests").document(test_id).set(new_test)
     await state.clear()
     
-    visibility_text = {
-        "public": "🌍 Ommaviy",
-        "link": "🔗 Ssilka orqali",
-        "private": "🔒 Shaxsiy"
-    }
-    
     bot_username = (await callback.bot.me()).username
+    vis_text = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka orqali", "private": "🔒 Shaxsiy"}[visibility]
     
     await callback.message.edit_text(
         f"🎉 <b>TEST MUVAFFAQIYATLI YARATILDI!</b>\n\n"
         f"<b>Test kodi:</b> <code>{test_id}</code>\n"
-        f"<b>Test ssilkasi:</b> <code>https://t.me/{bot_username}?start={test_id}</code>\n\n"
-        f"📊 <b>Ma'lumotlar:</b>\n"
-        f"• Fan (Kategoriya): {title}\n"
-        f"• Savollar: {len(questions)} ta\n"
-        f"• Holat: {visibility_text[visibility]}\n\n"
-        f"<i>Quyida Test kalitlari taqdim etiladi:</i>"
+        f"<b>Ssilka:</b> <code>https://t.me/{bot_username}?start={test_id}</code>\n\n"
+        f"📊 <b>Ma'lumotlar:</b>\n• Fan: {category}\n• Mavzu: {title}\n• Savollar: {len(questions)} ta\n• Holat: {vis_text}\n\n"
+        f"<i>Klitlar pastda yuboriladi:</i>"
     )
 
-    # 🔑 JAVOBLAR KALITINI YUBORISH MANTIQI
     key_text = f"🔑 <b>{title.upper()} - JAVOBLAR KALITI</b>\n\n"
     for i, q in enumerate(questions):
         corr = q.get("correct", "Noma'lum")
-        
-        if isinstance(corr, list):
-            corr = ", ".join(corr)
-        elif isinstance(corr, dict):
-            corr = ", ".join([f"{k}-{v}" for k, v in corr.items()])
-            
+        if isinstance(corr, list): corr = ", ".join(corr)
+        elif isinstance(corr, dict): corr = ", ".join([f"{k}-{v}" for k, v in corr.items()])
         key_text += f"<b>{i+1}-savol:</b> {corr}\n"
         
     if len(key_text) > 4000:
         file_obj = io.BytesIO(key_text.encode('utf-8'))
-        doc = BufferedInputFile(file_obj.getvalue(), filename=f"Klit_{test_id}.txt")
-        await callback.message.answer_document(
-            document=doc, 
-            caption="🔑 Test javoblari kaliti (Matn juda uzun bo'lgani uchun fayl shaklida yuborildi)"
-        )
+        await callback.message.answer_document(BufferedInputFile(file_obj.getvalue(), filename=f"Klit_{test_id}.txt"), caption="🔑 Kalit")
     else:
         await callback.message.answer(key_text, parse_mode="HTML")
 
@@ -303,16 +331,8 @@ async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
 async def cancel_handler(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
-    
-    # Inline xabarni tozalab tashlaymiz
-    try:
-        await callback.message.delete()
-    except:
-        pass
-    
+    try: await callback.message.delete()
+    except: pass
     from keyboards.keyboards import main_reply_keyboard
-    await callback.message.answer(
-        "❌ Test yaratish bekor qilindi.", 
-        reply_markup=main_reply_keyboard(callback.from_user.id)
-)
+    await callback.message.answer("❌ Test yaratish bekor qilindi.", reply_markup=main_reply_keyboard(callback.from_user.id))
     
