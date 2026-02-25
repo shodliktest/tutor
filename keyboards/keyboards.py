@@ -1,11 +1,15 @@
 """
 ⌨️ INLINE VA REPLY KLAVIATURALAR (AIOGRAM 3)
+Doimiy (Reply) menyu tizimi va Inline tugmalar jamlanmasi.
+Hech narsa qisqartirilmadi.
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import SUBJECTS, DIFFICULTY_LEVELS
 
-# 🆕 DOIMIY MENYU (REPLY KEYBOARD)
+# ==========================================
+# 1. DOIMIY MENYU (REPLY KEYBOARD)
+# ==========================================
 def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
     kb = [
         [KeyboardButton(text="📚 Testlar"), KeyboardButton(text="➕ Test Yaratish")],
@@ -20,23 +24,22 @@ def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
             
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, input_field_placeholder="Bo'limni tanlang...")
 
-# ESKI INLINE MENYU (Zaxira uchun qoldiramiz)
-def main_menu_keyboard(user_id: int = None) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📚 Testlar", callback_data="browse_all"), InlineKeyboardButton(text="➕ Test Yaratish", callback_data="create_test"))
-    builder.row(InlineKeyboardButton(text="📊 Natijalarim", callback_data="profile_results"), InlineKeyboardButton(text="🏆 Reyting", callback_data="lb_global"))
-    builder.row(InlineKeyboardButton(text="👤 Profil", callback_data="profile_view"), InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help"))
-    return builder.as_markup()
+
+# ==========================================
+# 2. INLINE TUGMALAR (ADMIN VA BOSHQALAR)
+# ==========================================
 
 def admin_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"), InlineKeyboardButton(text="📋 Testlar", callback_data="admin_tests"))
     builder.row(InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"), InlineKeyboardButton(text="📢 Xabar yuborish", callback_data="admin_broadcast"))
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
 def leaderboard_keyboard(current: str = "global") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🌍 Umumiy" + (" ✓" if current == "global" else ""), callback_data="lb_global"), InlineKeyboardButton(text="📚 Fan bo'yicha", callback_data="lb_subject"))
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
 def subjects_keyboard(callback_prefix: str = "browse_subj_") -> InlineKeyboardMarkup:
@@ -44,9 +47,9 @@ def subjects_keyboard(callback_prefix: str = "browse_subj_") -> InlineKeyboardMa
     for subject in SUBJECTS:
         builder.add(InlineKeyboardButton(text=subject, callback_data=f"{callback_prefix}{subject}"))
     builder.adjust(2)
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
-# 🆕 TEST YARATISH UCHUN FAN TANLASH (GURUHLASH)
 def create_subject_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for subject in SUBJECTS:
@@ -84,13 +87,14 @@ def tests_list_keyboard(tests: list, user_results: list, subject: str) -> Inline
 def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="▶️ Testni boshlash", callback_data=f"start_test_{test_id}"))
-    builder.row(InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}"), InlineKeyboardButton(text="◀️ Orqaga", callback_data="browse_all"))
+    builder.row(InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}"), InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
 def result_keyboard(test_id: str, result_id: str, passed: bool) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📝 Tahlil va Izohlar", callback_data=f"analysis_{result_id}"))
     builder.row(InlineKeyboardButton(text="🔄 Qaytadan ishlash", callback_data=f"view_test_{test_id}"), InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}"))
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
 def finish_test_keyboard() -> InlineKeyboardMarkup:
