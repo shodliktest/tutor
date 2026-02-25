@@ -1,6 +1,6 @@
 """
 📌 AIOGRAM 3 FSM (HOLATLAR / STATES)
-Tushuntirish oynasi uchun yangi holat (viewing_explanation) kiritildi.
+Barcha qadamlar: Test yechish, Yaratish, Admin va Support.
 """
 from aiogram.fsm.state import State, StatesGroup
 
@@ -9,7 +9,7 @@ class TestSolving(StatesGroup):
     text_answer = State()
     matching_answer = State()
     ordering_answer = State()
-    viewing_explanation = State() # <-- YANGI: Tushuntirish o'qilayotgan holat
+    viewing_explanation = State()
 
 class CreateTest(StatesGroup):
     upload_file = State()
@@ -19,19 +19,11 @@ class CreateTest(StatesGroup):
     set_passing_score = State()
     set_max_attempts = State()
     set_visibility = State()
-    confirm_test = State()
-    manual_question = State()
-    manual_options = State()
-    manual_correct = State()
-    manual_explanation = State()
-
-class Registration(StatesGroup):
-    name = State()
-    phone = State()
-    role = State()
 
 class AdminPanel(StatesGroup):
-    action = State()
-    block_user = State()
-    delete_test = State()
     broadcast = State()
+
+class Support(StatesGroup):
+    waiting_for_message = State()
+    waiting_for_reply = State()
+    
