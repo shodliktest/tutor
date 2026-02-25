@@ -1,7 +1,6 @@
 """
 ⌨️ INLINE VA REPLY KLAVIATURALAR (AIOGRAM 3)
-Doimiy (Reply) menyu tizimi va Inline tugmalar jamlanmasi.
-Hech narsa qisqartirilmadi.
+Variantlar bir qatorda va Izohni o'chirish/yoqish tugmalari yonma-yon qilingan versiya.
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -24,11 +23,9 @@ def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
             
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, input_field_placeholder="Bo'limni tanlang...")
 
-
 # ==========================================
-# 2. INLINE TUGMALAR (ADMIN VA BOSHQALAR)
+# 2. INLINE TUGMALAR
 # ==========================================
-
 def admin_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"), InlineKeyboardButton(text="📋 Testlar", callback_data="admin_tests"))
@@ -92,40 +89,70 @@ def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
 
 def result_keyboard(test_id: str, result_id: str, passed: bool) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📝 Tahlil va Izohlar", callback_data=f"analysis_{result_id}"))
+    # Tahlil endi chatda ko'rsatiladi
+    builder.row(InlineKeyboardButton(text="📝 Tahlilni chatda ko'rish", callback_data=f"analysis_{result_id}"))
     builder.row(InlineKeyboardButton(text="🔄 Qaytadan ishlash", callback_data=f"view_test_{test_id}"), InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{test_id}"))
     builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
-def finish_test_keyboard() -> InlineKeyboardMarkup:
+# ==========================================================
+# 3. TEST YECHISH KLAVIATURALARI (YONMA-YON DIZAYN)
+# ==========================================================
+def finish_test_keyboard(question_index: int, show_exp: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    exp_text = "🔇 Izohni o'chirish" if show_exp else "🔊 Izohni yoqish"
+    builder.row(
+        InlineKeyboardButton(text=exp_text, callback_data=f"toggle_exp_{question_index}"),
+        InlineKeyboardButton(text="🏁 Yakunlash", callback_data="finish_test")
+    )
     return builder.as_markup()
 
-def multiple_choice_keyboard(options: list, question_index: int) -> InlineKeyboardMarkup:
+def multiple_choice_keyboard(options: list, question_index: int, show_exp: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    # 1. Variantlarni qo'shish (bir qatorga teriladi)
     for opt in options:
         letter = opt.split(')')[0] + ')' if ')' in opt else opt[:2]
         builder.add(InlineKeyboardButton(text=letter, callback_data=f"ans_{question_index}_{letter}"))
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    builder.adjust(len(options)) # Barcha variantlarni yonma-yon bitta qatorga joylash
+    
+    # 2. Izoh va Yakunlash tugmalarini bitta qatorga (yonma-yon) qo'shish
+    exp_text = "🔇 Izohni o'chirish" if show_exp else "🔊 Izohni yoqish"
+    builder.row(
+        InlineKeyboardButton(text=exp_text, callback_data=f"toggle_exp_{question_index}"),
+        InlineKeyboardButton(text="🏁 Yakunlash", callback_data="finish_test")
+    )
     return builder.as_markup()
 
-def true_false_keyboard(question_index: int) -> InlineKeyboardMarkup:
+def true_false_keyboard(question_index: int, show_exp: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="✅ Ha", callback_data=f"ans_{question_index}_Ha"), InlineKeyboardButton(text="❌ Yo'q", callback_data=f"ans_{question_index}_Yo'q"))
-    builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    builder.row(
+        InlineKeyboardButton(text="✅ Ha", callback_data=f"ans_{question_index}_Ha"), 
+        InlineKeyboardButton(text="❌ Yo'q", callback_data=f"ans_{question_index}_Yo'q")
+    )
+    exp_text = "🔇 Izohni o'chirish" if show_exp else "🔊 Izohni yoqish"
+    builder.row(
+        InlineKeyboardButton(text=exp_text, callback_data=f"toggle_exp_{question_index}"),
+        InlineKeyboardButton(text="🏁 Yakunlash", callback_data="finish_test")
+    )
     return builder.as_markup()
 
-def multi_select_keyboard(options: list, question_index: int, selected: list = None) -> InlineKeyboardMarkup:
+def multi_select_keyboard(options: list, question_index: int, selected: list = None, show_exp: bool = True) -> InlineKeyboardMarkup:
     if selected is None: selected = []
     builder = InlineKeyboardBuilder()
     for opt in options:
         letter = opt.split(')')[0] + ')' if ')' in opt else opt[:2]
         mark = " ✅" if letter in selected else ""
         builder.add(InlineKeyboardButton(text=f"{letter}{mark}", callback_data=f"msel_{question_index}_{letter}"))
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"next_{question_index}"), InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
+    builder.adjust(len(options)) # Variantlar yonma-yon
+    
+    # Multi select da alohida "Keyingi" tugmasi bo'ladi
+    builder.row(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"next_{question_index}"))
+    
+    exp_text = "🔇 Izohni o'chirish" if show_exp else "🔊 Izohni yoqish"
+    builder.row(
+        InlineKeyboardButton(text=exp_text, callback_data=f"toggle_exp_{question_index}"),
+        InlineKeyboardButton(text="🏁 Yakunlash", callback_data="finish_test")
+    )
     return builder.as_markup()
 
 def explanation_keyboard(question_index: int) -> InlineKeyboardMarkup:
@@ -133,4 +160,4 @@ def explanation_keyboard(question_index: int) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="💡 Tushundim (Keyingi ➡️)", callback_data=f"go_next_{question_index}"))
     builder.row(InlineKeyboardButton(text="🏁 Testni yakunlash", callback_data="finish_test"))
     return builder.as_markup()
-    
+        
