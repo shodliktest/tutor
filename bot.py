@@ -65,7 +65,7 @@ dp.include_router(create_test_router)
 dp.include_router(tests_router)
 dp.include_router(admin_router)
 dp.include_router(leaderboard_router)
-dp.include_router(admin_router)
+dp.include_router(bot_admin_router)
 
 
 # 🛡️ GLOBAL ERROR HANDLER (Qulab tushishdan himoya)
