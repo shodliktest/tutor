@@ -13,10 +13,11 @@ class TestSolving(StatesGroup):
     viewing_explanation = State()
 
 class CreateTest(StatesGroup):
-    choose_method = State()     # YANGI: Fayl yoki Quiz usulini tanlash
-    waiting_for_polls = State() # YANGI: Telegram Quiz'larini kutish
+    choose_method = State()     
+    waiting_for_polls = State() 
     upload_file = State()
     set_subject = State()
+    set_test_title = State()    # 🆕 YANGI: Test mavzusini so'rash qadami
     set_difficulty = State()
     set_time_limit = State()
     set_passing_score = State()
