@@ -19,7 +19,7 @@ def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
     if user_id:
         from config import ADMIN_IDS
         if user_id in ADMIN_IDS:
-            kb.append([KeyboardButton(text="👨‍💼 Admin Panel")])
+            kb.append([KeyboardButton(text="👑 Admin Panel")])
             
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, input_field_placeholder="Bo'limni tanlang...")
 
