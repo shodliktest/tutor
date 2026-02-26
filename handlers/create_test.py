@@ -67,7 +67,7 @@ async def create_test_start_msg(message: Message, state: FSMContext):
     
     text = (
         "<b>➕ TEST YARATISH BO'LIMI</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Qaysi usulda savollarni yig'moqchisiz?\n\n"
         "<b>1. Fayl yuklash:</b> TXT, PDF yoki DOCX fayldan o'qish.\n"
         "<b>2. QuizBotdan uzatish:</b> Tayyor viktorinalarni shu yerga forward qilib yig'ish."
