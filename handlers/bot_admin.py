@@ -54,7 +54,35 @@ async def admin_users_handler(callback: CallbackQuery):
         
     doc = BufferedInputFile(text.encode('utf-8'), filename="Foydalanuvchilar.txt")
     await callback.message.answer_document(doc, caption="👥 Barcha foydalanuvchilar ro'yxati (TXT)")
-
+# ==========================================================
+# TESTLAR RO'YXATINI OLISH (YANGI QO'SHILDI)
+# ==========================================================
+@router.callback_query(F.data == "admin_tests")
+async def admin_tests_handler(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS: return
+    await callback.answer("⏳ Testlar ro'yxati tayyorlanmoqda...")
+    
+    from firebase.db import get_all_tests
+    tests = get_all_tests()
+    
+    if not tests:
+        return await callback.message.answer("❌ Bazada hali hech qanday test yo'q.")
+        
+    text = "ID KODI | FAN | MAVZU | SAVOLLAR SONI | YECHILGAN\n" + "━"*50 + "\n"
+    
+    for t in tests:
+        t_id = t.get('test_id', 'Noma\'lum')
+        cat = t.get('category', 'Boshqa')
+        title = t.get('title', 'Nomsiz')
+        q_count = len(t.get('questions', []))
+        s_count = t.get('solve_count', 0)
+        
+        text += f"{t_id} | {cat} | {title} | {q_count} ta | {s_count} marta\n"
+        
+    from aiogram.types import BufferedInputFile
+    doc = BufferedInputFile(text.encode('utf-8'), filename="Barcha_Testlar.txt")
+    await callback.message.answer_document(doc, caption="📋 <b>Barcha yaratilgan testlar ro'yxati (TXT)</b>\n<i>Kodni nusxalab botdan qidirishingiz mumkin.</i>", parse_mode="HTML")
+    
 # ==========================================================
 # 3. OMMAVIY XABAR YUBORISH (BROADCAST)
 # ==========================================================
