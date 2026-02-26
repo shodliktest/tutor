@@ -17,7 +17,7 @@ from bot import run_bot_in_background
 from config import SUBJECTS
 
 # ══════════════════════════════════════════════════════════
-# 1. SAHIFA SOZLAMALARI
+# 1. SAHIFA SOZLAMALARI (ENG TEPADA BO'LISHI SHART)
 # ══════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Quiz Bot | Admin Panel",
@@ -27,35 +27,7 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-# 2. XAVFSIZLIK: LOGIN TIZIMI
-# ══════════════════════════════════════════════════════════
-# Sessiyada avtorizatsiyadan o'tganligini tekshirish
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-# Agar tizimga kirmagan bo'lsa, faqat Parol so'rash oynasi chiqadi
-if not st.session_state.authenticated:
-    st.title("🔒 Tizimga kirish")
-    st.write("Bu sahifa faqat administratorlar uchun mo'ljallangan.")
-    
-    pwd = st.text_input("Parolni kiriting:", type="password")
-    
-    if st.button("Kirish"):
-        # Secrets ichidagi ADMIN_PASSWORD ni tekshiradi (Agar qo'yilmagan bo'lsa standart parol 'admin123')
-        correct_password = st.secrets.get("ADMIN_PASSWORD", "admin123")
-        
-        if pwd == correct_password:
-            st.session_state.authenticated = True
-            st.rerun() # Sahifani yangilash va haqiqiy admin panelni ochish
-        else:
-            st.error("❌ Noto'g'ri parol!")
-            
-    st.stop() # Qolgan kodlar o'qilmasligi uchun shu yerda to'xtatamiz
-
-# ======================= BUNDAN UYOG'I FAQAT ADMIN UCHUN =======================
-
-# ══════════════════════════════════════════════════════════
-# 3. CACHE (LIMITLARNI TEJASH) VA BOTNI ISHGA TUSHIRISH
+# 2. BOTNI VA BAZANI ISHGA TUSHIRISH (PAROLDAN OLDIN!)
 # ══════════════════════════════════════════════════════════
 @st.cache_resource
 def init_system():
@@ -64,9 +36,10 @@ def init_system():
     bot_thread = run_bot_in_background()
     return bot_thread
 
+# Dastur ishlashi bilan bot uyg'onadi, parol kiritishni kutib o'tirmaydi
 bot_thread = init_system()
 
-@st.cache_data(ttl=300) # MANTIQ: Firebase'ga har 5 daqiqada (300 sek) 1 marta boradi!
+@st.cache_data(ttl=300) 
 def load_data():
     """Barcha ma'lumotlarni tortish (Keshlangan)"""
     users = get_all_users()
@@ -77,6 +50,31 @@ def load_data():
 # Ma'lumotlarni yuklash (tezkor ishlaydi)
 users_data, tests_data, leaders_data = load_data()
 
+
+# ══════════════════════════════════════════════════════════
+# 3. XAVFSIZLIK: LOGIN TIZIMI (ENDI BOTGA XALAL BERMAYDI)
+# ══════════════════════════════════════════════════════════
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔒 Tizimga kirish")
+    st.write("Bu sahifa faqat administratorlar uchun mo'ljallangan.")
+    
+    pwd = st.text_input("Parolni kiriting:", type="password")
+    
+    if st.button("Kirish"):
+        correct_password = st.secrets.get("ADMIN_PASSWORD", "admin123")
+        
+        if pwd == correct_password:
+            st.session_state.authenticated = True
+            st.rerun() 
+        else:
+            st.error("❌ Noto'g'ri parol!")
+            
+    st.stop() # Sayt shu yerda to'xtaydi, lekin tepadagi bot_thread ishlab yotaveradi!
+
+# ======================= BUNDAN UYOG'I FAQAT ADMIN UCHUN =======================
 
 # ══════════════════════════════════════════════════════════
 # 4. YON PANEL (SIDEBAR) VA NAVIGATSIYA
@@ -98,7 +96,6 @@ with st.sidebar:
     )
     st.markdown("---")
     
-    # Chiqib ketish tugmasi
     if st.button("🚪 Tizimdan chiqish"):
         st.session_state.authenticated = False
         st.rerun()
@@ -107,7 +104,7 @@ with st.sidebar:
 
 
 # ══════════════════════════════════════════════════════════
-# 5. ASOSIY SAHIFA MANTIQI (Oldingi qismlar xuddi shunday saqlanib qoldi)
+# 5. ASOSIY SAHIFA MANTIQI
 # ══════════════════════════════════════════════════════════
 
 # ----------------------------------------------------------
@@ -117,7 +114,7 @@ if menu == "📊 Bosh Panel (Dashboard)":
     st.header("📊 Tizimning Umumiy Holati")
     
     if st.button("🔄 Ma'lumotlarni yangilash"):
-        load_data.clear() # Keshni tozalash va zudlik bilan bazadan yangisini olish
+        load_data.clear() 
         st.rerun()
         
     col1, col2, col3, col4 = st.columns(4)
@@ -161,7 +158,6 @@ if menu == "📊 Bosh Panel (Dashboard)":
         else:
             st.info("Foydalanuvchilar yo'q.")
 
-
 # ----------------------------------------------------------
 # 👥 FOYDALANUVCHILAR
 # ----------------------------------------------------------
@@ -194,12 +190,11 @@ elif menu == "👥 Foydalanuvchilar":
                 uid = int(target_id.split(" - ")[0])
                 current_status = df_users[df_users['telegram_id'] == uid]['is_blocked'].values[0]
                 block_user(uid, not current_status)
-                load_data.clear() # Keshni tozalash
+                load_data.clear() 
                 st.success("✅ Muvaffaqiyatli! Sahifa yangilanmoqda...")
                 st.rerun()
     else:
         st.warning("Hozircha bazada foydalanuvchilar yo'q.")
-
 
 # ----------------------------------------------------------
 # 📋 TESTLAR BAZASI
@@ -227,12 +222,11 @@ elif menu == "📋 Testlar Bazasi":
             if st.button("🗑 O'chirish", type="primary", use_container_width=True):
                 t_id = target_test.split(" - ")[0]
                 delete_test(t_id)
-                load_data.clear() # Keshni tozalash
+                load_data.clear() 
                 st.success("✅ Test o'chirildi!")
                 st.rerun()
     else:
         st.warning("Hozircha bazada testlar yo'q.")
-
 
 # ----------------------------------------------------------
 # 🏆 REYTING
@@ -248,7 +242,6 @@ elif menu == "🏆 Reyting":
         st.table(display_leaders)
     else:
         st.info("Reyting shakllanishi uchun foydalanuvchilar kamida 1 ta test ishlagan bo'lishi kerak.")
-
 
 # ----------------------------------------------------------
 # ⚙️ SOZLAMALAR (SECRETS QO'LLANMASI)
@@ -268,3 +261,4 @@ ADMIN_PASSWORD = "meni_maxfiy_parolim"
 type = "service_account"
 # ... qolgan firebase kalitlari ...
     """, language="toml")
+             
