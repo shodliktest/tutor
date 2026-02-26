@@ -60,14 +60,14 @@ async def create_test_start_msg(message: Message, state: FSMContext):
     await state.clear()
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📁 Fayl yuklash (TXT, PDF)", callback_data="method_file"),
-        InlineKeyboardButton(text="📊 QuizBotdan uzatish", callback_data="method_poll")
+        InlineKeyboardButton(text="📁 Fayl yuklash(TXT,PDF)", callback_data="method_file"),
+        InlineKeyboardButton(text="📊 QuizBotdan olish", callback_data="method_poll")
     )
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
     text = (
         "<b>➕ TEST YARATISH BO'LIMI</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Qaysi usulda savollarni yig'moqchisiz?\n\n"
         "<b>1. Fayl yuklash:</b> TXT, PDF yoki DOCX fayldan o'qish.\n"
         "<b>2. QuizBotdan uzatish:</b> Tayyor viktorinalarni shu yerga forward qilib yig'ish."
@@ -94,7 +94,7 @@ async def method_file_handler(callback: CallbackQuery, state: FSMContext):
     
     text = (
         "<b>📁 TEST TURINI TANLANG</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Siz qanday turdagi test yaratmoqchisiz? Kerakli turni tanlang, men sizga namuna yuboraman:"
     )
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -121,7 +121,7 @@ async def send_sample_text(callback: CallbackQuery):
     
     text = (
         f"<b>📄 {type_name.upper()} YARATISH</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Siz tanlagan tur uchun namuna formati:\n\n"
         f"<code>{mono_text}</code>\n\n"
         f"<i>💡 Yuqoridagi matn ustiga bitta bossangiz nusxa olinadi. O'zgartirib, savollaringizni shu ko'rinishda yozing va menga fayl (TXT, PDF, DOCX) qilib yuboring.</i>\n\n"
@@ -152,7 +152,7 @@ async def upload_file_handler(message: Message, state: FSMContext):
         
         text = (
             f"<b>✅ {len(questions)} TA SAVOL TOPILDI</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"Test qaysi fanga tegishli? Pastdan tanlang:"
         )
         await status_msg.edit_text(text, reply_markup=create_subject_keyboard())
@@ -174,7 +174,7 @@ async def method_poll_handler(callback: CallbackQuery, state: FSMContext):
     
     text = (
         "<b>📊 QUIZBOTDAN UZATISH</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Endi @QuizBot dagi tayyor viktorinalarni shu yerga <b>Forward (Uzatish)</b> qiling.\n"
         "Har bir yuborgan savolingiz to'plamga qo'shiladi."
     )
@@ -234,21 +234,21 @@ async def process_subject_selection(callback: CallbackQuery, state: FSMContext):
         await state.set_state(CreateTest.set_subject)
     else:
         await state.update_data(category=subj)
-        text = f"<b>🏷 TEST MAVZUSI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nFan: {subj}\n\nEndi test mavzusini yozing:\n<i>(Masalan: O'nlik kasrlar)</i>"
+        text = f"<b>🏷 TEST MAVZUSI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nFan: {subj}\n\nEndi test mavzusini yozing:\n<i>(Masalan: O'nlik kasrlar)</i>"
         await callback.message.edit_text(text)
         await state.set_state(CreateTest.set_test_title)
 
 @router.message(F.text, CreateTest.set_subject)
 async def set_subject_manual(message: Message, state: FSMContext):
     await state.update_data(category=message.text)
-    text = f"<b>🏷 TEST MAVZUSI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nFan: {message.text}\n\nEndi test mavzusini yozing:"
+    text = f"<b>🏷 TEST MAVZUSI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nFan: {message.text}\n\nEndi test mavzusini yozing:"
     await message.answer(text)
     await state.set_state(CreateTest.set_test_title)
 
 @router.message(F.text, CreateTest.set_test_title)
 async def set_test_title_handler(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
-    text = f"<b>📊 QIYINLIK DARAJASI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nMavzu: {message.text}\n\nQiyinlik darajasini tanlang:"
+    text = f"<b>📊 QIYINLIK DARAJASI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nMavzu: {message.text}\n\nQiyinlik darajasini tanlang:"
     await message.answer(text, reply_markup=difficulty_keyboard())
     await state.set_state(CreateTest.set_difficulty)
 
@@ -256,7 +256,7 @@ async def set_test_title_handler(message: Message, state: FSMContext):
 async def set_difficulty_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(difficulty=callback.data.replace("diff_", ""))
-    text = "<b>⏱ VAQT LIMITI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nVaqt limitini kiriting (daqiqada, cheksiz bo'lsa 0):"
+    text = "<b>⏱ VAQT LIMITI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nVaqt limitini kiriting (daqiqada, cheksiz bo'lsa 0):"
     await callback.message.edit_text(text)
     await state.set_state(CreateTest.set_time_limit)
 
@@ -264,7 +264,7 @@ async def set_difficulty_handler(callback: CallbackQuery, state: FSMContext):
 async def set_time_limit_handler(message: Message, state: FSMContext):
     if not message.text.isdigit(): return await message.answer("❌ Raqam kiriting.")
     await state.update_data(time_limit=int(message.text))
-    text = "<b>🎯 O'TISH FOIZI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nO'tish foizini kiriting (0-100):"
+    text = "<b>🎯 O'TISH FOIZI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nO'tish foizini kiriting (0-100):"
     await message.answer(text)
     await state.set_state(CreateTest.set_passing_score)
 
@@ -272,7 +272,7 @@ async def set_time_limit_handler(message: Message, state: FSMContext):
 async def set_passing_score_handler(message: Message, state: FSMContext):
     if not message.text.isdigit(): return await message.answer("❌ Raqam kiriting.")
     await state.update_data(passing_score=int(message.text))
-    text = "<b>🔄 URINISHLAR SONI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nUrinishlar sonini kiriting (cheksiz bo'lsa 0):"
+    text = "<b>🔄 URINISHLAR SONI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nUrinishlar sonini kiriting (cheksiz bo'lsa 0):"
     await message.answer(text)
     await state.set_state(CreateTest.set_max_attempts)
 
@@ -280,7 +280,7 @@ async def set_passing_score_handler(message: Message, state: FSMContext):
 async def set_max_attempts_handler(message: Message, state: FSMContext):
     if not message.text.isdigit(): return await message.answer("❌ Raqam kiriting.")
     await state.update_data(max_attempts=int(message.text))
-    text = "<b>🔒 TEST MAXFIYLIGI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nTest maxfiyligini tanlang:"
+    text = "<b>🔒 TEST MAXFIYLIGI</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nTest maxfiyligini tanlang:"
     await message.answer(text, reply_markup=test_visibility_keyboard())
     await state.set_state(CreateTest.set_visibility)
 
@@ -314,7 +314,7 @@ async def set_visibility_handler(callback: CallbackQuery, state: FSMContext):
     bot_user = await callback.bot.me()
     text = (
         f"<b>🎉 TEST MUVAFFAQIYATLI YARATILDI!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🆔 Kod: <code>{test_id}</code>\n"
         f"🔗 Ssilka: <code>https://t.me/{bot_user.username}?start={test_id}</code>\n\n"
         f"📌 Fan: {new_test['category']}\n"
