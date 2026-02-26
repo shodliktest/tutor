@@ -60,8 +60,8 @@ async def create_test_start_msg(message: Message, state: FSMContext):
     await state.clear()
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📁 Fayl yuklash(TXT,PDF)", callback_data="method_file"),
-        InlineKeyboardButton(text="📊 QuizBotdan olish", callback_data="method_poll")
+        InlineKeyboardButton(text="📁 Yuklash(TXT,PDF)", callback_data="method_file"),
+        InlineKeyboardButton(text="📊 QuizBotdan", callback_data="method_poll")
     )
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
