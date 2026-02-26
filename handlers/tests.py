@@ -27,7 +27,7 @@ async def send_categories_menu(message_or_callback):
     
     text = (
         "<b>📚 TESTLAR BO'LIMI</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "<i>Test kodini (ID) to'g'ridan-to'g'ri yozib yuboring yoki pastdagi fanlardan birini tanlang:</i>\n\n"
     )
     
@@ -74,7 +74,7 @@ async def show_tests_in_category(callback: CallbackQuery):
         
     text = (
         f"<b>📁 FAN: {cat_tests[0].get('category', 'Boshqa').upper()}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Qaysi testni ishlashni xohlaysiz?"
     )
     
@@ -141,7 +141,7 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
 
     header = (
         f"<b>📝 {test_title} | {current_index + 1}/{len(questions)}{time_text}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     
     question_text = f"<b>{q.get('question', 'Savol matni kiritilmagan')}</b>\n\n"
@@ -178,7 +178,7 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
 
     if show_exp:
         explanation = q.get("explanation", "Ushbu savol uchun izoh kiritilmagan.")
-        full_text += f"\n━━━━━━━━━━━━━━━━━━━━━━\n💡 <b>Izoh:</b> <i>{explanation}</i>\n"
+        full_text += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💡 <b>Izoh:</b> <i>{explanation}</i>\n"
 
     exp_btn_text = "💡 Izoh rejimi: 🟢 YONIQ" if exp_mode else "💡 Izoh rejimi: 🔴 O'CHIK"
     builder.row(InlineKeyboardButton(text=exp_btn_text, callback_data="toggle_exp_mode"))
@@ -263,7 +263,7 @@ async def cancel_test_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     text = (
         "<b>❌ TEST TO'XTATILDI</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Siz test ishlashni to'xtatdingiz. Natijalar saqlanmadi."
     )
     await callback.message.answer(text, reply_markup=main_reply_keyboard(callback.from_user.id))
@@ -331,7 +331,7 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
     
     text = (
         f"<b>📊 YAKUNIY NATIJA</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📝 <b>Test mavzusi:</b> {test.get('title', 'Nomsiz test')}\n"
         f"📁 <b>Fan:</b> {test.get('category', 'Boshqa')}\n"
         f"👤 <b>O'quvchi:</b> {user_name}\n\n"
@@ -341,7 +341,7 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
         f"🎯 <b>Sizning natijangiz:</b> {round(score_percentage, 1)}%\n"
         f"📈 <b>O'tish bali (Talab):</b> {passing_score}%\n"
         f"⏱ <b>Sarflangan vaqt:</b> {time_str}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🎓 <b>Holat:</b> {'🎉 MUVAFFAQIYATLI O\'TDINGIZ!' if passed else '❌ YIQILDINGIZ (O\'ta olmadingiz).'}"
     )
     
@@ -369,7 +369,7 @@ async def analysis_handler(callback: CallbackQuery):
     if not detailed:
         await callback.message.answer(
             "<b>⚠️ DIQQAT: ESKI TEST</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "Bu eski test bo'lgani uchun, uning batafsil tahlili (qaysi savolga nima belgilaganingiz) bazada yo'q.\n"
             "<i>Yangi test ishlab ko'ring, barcha javoblar va izohlar to'liq chiqadi!</i>", 
             parse_mode="HTML"
@@ -379,7 +379,7 @@ async def analysis_handler(callback: CallbackQuery):
     chunks = []
     current_chunk = (
         f"<b>📝 {test.get('title', 'Test').upper()} - TAHLIL</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     
     for d in detailed:
