@@ -1,6 +1,6 @@
 """
 📚 TEST YECHISH VA TAHLIL HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Qalin chiziqlar, moslashuvchan tugmalar, xatosiz tahlil saqlash tizimi.
+Fanlar ro'yxati (Katalog), qalin chiziqlar, moslashuvchan tugmalar, xatosiz tahlil.
 Hech narsa qisqartirilmadi!
 """
 import time
@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
-from firebase.db import get_test, save_result, get_user, get_db
+from firebase.db import get_test, save_result, get_user, get_db, get_all_tests
 from utils.states import TestSolving
 from keyboards.keyboards import result_keyboard, main_reply_keyboard
 
@@ -19,18 +19,86 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 # ==========================================================
-# 1. TESTGA KIRISH VA BOSHLASH
+# 1. TESTLAR KATALOGI (FANLAR VA SONI)
 # ==========================================================
-@router.message(F.text == "📚 Testlar")
-async def tests_menu_handler(message: Message, state: FSMContext):
-    await state.clear()
+async def send_categories_menu(message_or_callback):
+    """Fanlar ro'yxatini va ulardagi testlar sonini hisoblab chiqaruvchi funksiya"""
+    all_tests = get_all_tests()
+    # Faqat ommaviy (public) testlarni olamiz
+    public_tests = [t for t in all_tests if t.get("visibility") == "public"]
+    
     text = (
         "<b>📚 TESTLAR BO'LIMI</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Kodni (ID) kiriting yoki ssilka orqali o'ting:"
+        "<i>Test kodini (ID) to'g'ridan-to'g'ri yozib yuboring yoki pastdagi fanlardan birini tanlang:</i>\n\n"
     )
-    await message.answer(text, reply_markup=main_reply_keyboard(message.from_user.id))
+    
+    if not public_tests:
+        text += "Hozircha bazada ommaviy testlar mavjud emas."
+        if isinstance(message_or_callback, Message):
+            await message_or_callback.answer(text)
+        else:
+            await message_or_callback.message.edit_text(text)
+        return
 
+    # Fanlar bo'yicha guruhlash va sanash
+    categories = {}
+    for t in public_tests:
+        cat = t.get("category", "Boshqa")
+        if cat not in categories:
+            categories[cat] = 0
+        categories[cat] += 1
+        
+    builder = InlineKeyboardBuilder()
+    for cat, count in categories.items():
+        # Tugma bosilganda fanni tanib olish uchun (uzunligini kesamiz)
+        cb_data = f"cat_{cat}"[:40] 
+        builder.row(InlineKeyboardButton(text=f"📁 {cat} ({count})", callback_data=cb_data))
+        
+    if isinstance(message_or_callback, Message):
+        await message_or_callback.answer(text, reply_markup=builder.as_markup())
+    else:
+        await message_or_callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+@router.message(F.text == "📚 Testlar")
+async def tests_menu_handler(message: Message, state: FSMContext):
+    await state.clear()
+    await send_categories_menu(message)
+
+@router.callback_query(F.data.startswith("cat_"))
+async def show_tests_in_category(callback: CallbackQuery):
+    await callback.answer()
+    cat_name = callback.data.replace("cat_", "")
+    
+    all_tests = get_all_tests()
+    cat_tests = [t for t in all_tests if t.get("visibility") == "public" and str(t.get("category", "")).startswith(cat_name)]
+    
+    if not cat_tests:
+        return await callback.message.edit_text("❌ Bu fanda testlar topilmadi.")
+        
+    text = (
+        f"<b>📁 FAN: {cat_tests[0].get('category', 'Boshqa').upper()}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Qaysi testni ishlashni xohlaysiz?"
+    )
+    
+    builder = InlineKeyboardBuilder()
+    for t in cat_tests:
+        t_title = t.get("title", "Nomsiz test")
+        t_id = t.get("test_id")
+        builder.row(InlineKeyboardButton(text=f"📝 {t_title}", callback_data=f"start_test_{t_id}"))
+        
+    builder.row(InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_categories"))
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+@router.callback_query(F.data == "back_to_categories")
+async def back_to_cat_handler(callback: CallbackQuery):
+    await callback.answer()
+    await send_categories_menu(callback)
+
+# ==========================================================
+# 2. TESTNI BOSHLASH VA SAVOLNI EKRANGA CHIQARISH
+# ==========================================================
 @router.callback_query(F.data.startswith("start_test_"))
 async def start_test_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -44,7 +112,6 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
     if not questions:
         return await callback.message.answer("❌ Ushbu testda savollar yo'q.")
         
-    # Holatni tayyorlash
     await state.update_data(
         test_data=test,
         questions=questions,
@@ -55,9 +122,6 @@ async def start_test_handler(callback: CallbackQuery, state: FSMContext):
     await state.set_state(TestSolving.answering)
     await send_question(callback, state, edit=True)
 
-# ==========================================================
-# 2. SAVOLNI EKRANGA CHIQARISH (MUKAMMAL DIZAYN)
-# ==========================================================
 async def send_question(message_or_callback, state: FSMContext, edit: bool = False):
     state_data = await state.get_data()
     questions = state_data.get("questions", [])
@@ -65,7 +129,7 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
     test_title = state_data.get("test_data", {}).get("title", "Nomsiz test")
     q = questions[current_index]
     
-    # ⏱ Vaqt hisobi
+    # Vaqt hisobi
     start_time = state_data.get("start_time")
     time_limit = state_data.get("test_data", {}).get("time_limit", 0)
     time_text = ""
@@ -75,16 +139,13 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
         m, s = divmod(remain, 60)
         time_text = f" | ⏱ {m:02d}:{s:02d}"
 
-    # 📝 QALIN SARLAVHA VA CHIZIQ
     header = (
         f"<b>📝 {test_title} | {current_index + 1}/{len(questions)}{time_text}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     
-    # ❓ SAVOL (Qalin text)
     question_text = f"<b>{q.get('question', 'Savol matni kiritilmagan')}</b>\n\n"
     
-    # 🅰️ VARIANTLAR (Harfi qalin, javob qismi kursiv)
     options_text = ""
     builder = InlineKeyboardBuilder()
     
@@ -98,7 +159,6 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
                 letter = letter.strip()
                 text = text.strip()
                 
-                # Agar foydalanuvchi aynan shu javobni belgilagan bo'lsa
                 prefix = "✅ " if current_answer == f"{letter})" else ""
                 options_text += f"{prefix}<b>{letter})</b> <i>{text}</i>\n"
                 
@@ -110,14 +170,12 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
                 btn_text = f"✅ {letter}" if current_answer == opt else letter
                 builder.add(InlineKeyboardButton(text=btn_text, callback_data=f"ans_{opt}"))
         
-        # Tugmalarni 2 tadan katta qilib taxlash
         builder.adjust(2)
     else:
         options_text += "<i>Bu savol turiga javob berish formatlanmagan.</i>\n"
 
     full_text = header + question_text + options_text
 
-    # 🎛 NAVIGATSIYA TUGMALARI
     nav_row = []
     if current_index > 0:
         nav_row.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data="nav_prev"))
@@ -146,11 +204,9 @@ async def process_answer(callback: CallbackQuery, state: FSMContext):
     user_answers = state_data.get("user_answers", {})
     current_index = state_data.get("current_index", 0)
     
-    # Javobni saqlash (masalan: "A)" ko'rinishida saqlanadi)
     user_answers[str(current_index)] = answer
     await state.update_data(user_answers=user_answers)
     
-    # Keyingi savolga avtomatik o'tish (yoki ohirgi savol bo'lsa o'zini yangilash)
     questions = state_data.get("questions", [])
     if current_index < len(questions) - 1:
         await state.update_data(current_index=current_index + 1)
@@ -190,7 +246,7 @@ async def cancel_test_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # ==========================================================
-# 4. TESTNI YAKUNLASH VA BAZAGA SAQLASH (TAHLIL XATOSI TUZATILDI)
+# 4. TESTNI YAKUNLASH VA BAZAGA SAQLASH
 # ==========================================================
 @router.callback_query(F.data == "nav_finish", TestSolving.answering)
 async def finish_test_handler(callback: CallbackQuery, state: FSMContext):
@@ -213,7 +269,6 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
         u_ans = user_answers.get(idx_str, "Belgilanmagan")
         c_ans = q.get("correct", "")
         
-        # To'g'ri javob tekshiruvi (A) bilan A ni farqlash)
         c_ans_clean = c_ans.split(" ")[0] if " " in c_ans and ")" in c_ans else c_ans
         
         is_correct = (u_ans == c_ans_clean or u_ans in c_ans)
@@ -231,7 +286,6 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
     passing_score = test.get("passing_score", 60)
     passed = score_percentage >= passing_score
     
-    # DIQQAT: detailed_results endi bazaga yozilmoqda!
     result_data = {
         "score": score_percentage,
         "correct_count": correct_count,
