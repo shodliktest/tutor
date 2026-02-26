@@ -4,7 +4,11 @@ Barcha qadamlar: Test yechish, Yaratish, Admin va Support.
 Hech narsa qisqartirilmadi!
 """
 from aiogram.fsm.state import State, StatesGroup
-
+class AdminPanel(StatesGroup):
+    block_user = State()
+    delete_test = State()
+    broadcast = State()
+    
 class TestSolving(StatesGroup):
     answering = State()
     text_answer = State()
