@@ -1,15 +1,17 @@
 """
 ➕ TEST YARATISH HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Namunalar (chatda nusxalash imkoni bilan), qalin chiziqlar va aniq format.
+7 xil test turini tanlash, fayl va chatda namuna yuborish, aniq yo'riqnomalar bilan.
+Hech narsa qisqartirilmadi!
 """
 import os
+import logging
 import uuid
 import tempfile
 import io
 from datetime import datetime, timezone
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
@@ -18,12 +20,36 @@ from utils.parser import parse_file
 from utils.states import CreateTest
 from keyboards.keyboards import difficulty_keyboard, test_visibility_keyboard, create_subject_keyboard, main_reply_keyboard
 
+logger = logging.getLogger(__name__)
 router = Router()
 
-# Chatda nusxalash uchun tayyor namunalar (Mono text)
-SAMPLE_TEXTS = {
-    "multiple_choice": "1. O'zbekiston poytaxti qayer?\n===A) Toshkent\nB) Samarqand\nC) Buxoro\nD) Xiva\nIzoh: Toshkent azaldan poytaxt hisoblanadi.",
-    "all": "1. O'zbekiston poytaxti qayer?\n===A) Toshkent\nB) Samarqand\nC) Buxoro\n\n2. Fill in: Alisher Navoiy ___ yilda tug'ilgan.\n===A) 1441\n\n3. Match:\n===A) Olma --- Meva\n===B) Bodring --- Sabzavot"
+SAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "samples")
+
+# 7 TA TEST TURI VA ULARNING NAMUNALARI
+SAMPLE_TYPES = {
+    "mcq": ("1_javobli_namuna.txt", "🔘 Bir javobli", 
+            "1. O'zbekiston poytaxti qayer?\n===A) Toshkent\nB) Samarqand\nC) Buxoro\nD) Xiva\nIzoh: Toshkent azaldan poytaxt hisoblanadi."),
+    
+    "mrq": ("kop_javobli_namuna.txt", "☑️ Ko'p javobli", 
+            "1. Qaysi shaharlar O'zbekistonda joylashgan?\n===A) Toshkent\n===B) Samarqand\nC) Ostona\n===D) Buxoro"),
+    
+    "tf": ("rost_yolgon_namuna.txt", "⚖️ Rost / Yolg'on", 
+           "1. Yer Quyosh atrofida aylanadi.\n===A) Rost\nB) Yolg'on"),
+    
+    "fill": ("bosh_joy_namuna.txt", "✍️ Bo'sh joyni to'ldirish", 
+             "1. Alisher Navoiy ___ yilda tug'ilgan.\n===A) 1441"),
+    
+    "match": ("moslashtirish_namuna.txt", "🔗 Moslashtirish", 
+              "1. Davlat va poytaxtni moslashtiring:\n===A) O'zbekiston --- Toshkent\n===B) Qozog'iston --- Ostona\n===C) Tojikiston --- Dushanbe"),
+    
+    "order": ("tartiblash_namuna.txt", "🔢 Tartiblash", 
+              "1. Voqealarni qadimgidan yangisiga tartiblang:\n===A) 1-jahon urushi\n===B) 2-jahon urushi\n===C) Sovuq urush"),
+    
+    "essay": ("ochiq_savol_namuna.txt", "📝 Ochiq savol (Yozma)", 
+              "1. Global isishning sabablarini yozing.\n===A) Ochiq javob"),
+    
+    "all": ("barcha_turlar_namuna.txt", "📦 Barcha 7 ta tur aralash", 
+            "1. Poytaxtimiz qayer?\n===A) Toshkent\nB) Samarqand\n\n2. Navoiy ___ da tug'ilgan.\n===A) 1441\n\n3. Moslashtiring:\n===A) Olma --- Meva\n===B) Bodring --- Sabzavot")
 }
 
 # ==========================================================
@@ -50,41 +76,56 @@ async def create_test_start_msg(message: Message, state: FSMContext):
     await state.set_state(CreateTest.choose_method)
 
 # ==========================================================
-# 2. FAYL YUKLASH VA NAMUNALAR
+# 2. FAYL YUKLASH: TEST TURINI TANLASH (7 TA USUL)
 # ==========================================================
 @router.callback_query(F.data == "method_file", CreateTest.choose_method)
 async def method_file_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="🔘 Oddiy test namunasi", callback_data="sample_multiple_choice"),
-        InlineKeyboardButton(text="📦 Barcha turlar", callback_data="sample_all")
-    )
+    
+    # 7 ta usulni tugmalarga chiroyli 2 tadan taxlaymiz
+    buttons = []
+    for key, val in SAMPLE_TYPES.items():
+        buttons.append(InlineKeyboardButton(text=val[1], callback_data=f"sample_{key}"))
+    
+    builder.add(*buttons)
+    builder.adjust(2) # 2 tadan qator
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
     text = (
-        "<b>📁 FAYL YUKLASH USULI</b>\n"
+        "<b>📁 TEST TURINI TANLANG</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Test savollari bor TXT, DOCX yoki PDF faylni yuboring.\n\n"
-        "<i>Agar fayl qanday yozilishini bilmasangiz, pastdagi namunalardan birini tanlang va nusxalab oling:</i>"
+        "Siz qanday turdagi test yaratmoqchisiz? Kerakli turni tanlang, men sizga namuna yuboraman:"
     )
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await state.set_state(CreateTest.upload_file)
 
+# ==========================================================
+# 3. NAMUNA YUBORISH VA FAYL KUTISH
+# ==========================================================
 @router.callback_query(F.data.startswith("sample_"), CreateTest.upload_file)
 async def send_sample_text(callback: CallbackQuery):
     await callback.answer()
     key = callback.data.replace("sample_", "")
-    sample_code = SAMPLE_TEXTS.get(key, SAMPLE_TEXTS["multiple_choice"])
+    filename, type_name, mono_text = SAMPLE_TYPES.get(key, SAMPLE_TYPES["mcq"])
     
+    # 1. Avval .txt fayl namunani yuboramiz
+    file_path = os.path.join(SAMPLES_DIR, filename)
+    if os.path.exists(file_path):
+        await callback.message.answer_document(FSInputFile(file_path, filename=filename), caption=f"📄 {type_name} uchun namuna fayli")
+    
+    # 2. Keyin chatning o'zida yo'riqnoma va mono text yuboramiz
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="⬅️ Ortga", callback_data="method_file"))
+    builder.row(InlineKeyboardButton(text="⬅️ Boshqa turni tanlash", callback_data="method_file"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
     
     text = (
-        "<b>📄 TAYYOR NAMUNA (Nusxalab oling)</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<i>Pastdagi matn ustiga bitta bossangiz nusxa olinadi. O'zgartirib menga fayl qilib yoki matn qilib yuboring:</i>\n\n"
-        f"<code>{sample_code}</code>"
+        f"<b>📄 {type_name.upper()} YARATISH</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Siz tanlagan tur uchun namuna formati:\n\n"
+        f"<code>{mono_text}</code>\n\n"
+        f"<i>💡 Yuqoridagi matn ustiga bitta bossangiz nusxa olinadi. O'zgartirib, savollaringizni shu ko'rinishda yozing va menga fayl (TXT, PDF, DOCX) qilib yuboring.</i>\n\n"
+        f"⏳ <b>Faylingizni yuklashingizni kutmoqdaman...</b>"
     )
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
@@ -101,12 +142,11 @@ async def upload_file_handler(message: Message, state: FSMContext):
             await message.bot.download_file(file.file_path, tmp_file.name)
             tmp_path = tmp_file.name
         
-        from utils.parser import parse_file
         questions = parse_file(tmp_path)
         os.remove(tmp_path) 
             
         if not questions:
-            return await status_msg.edit_text("❌ Fayldan savollar topilmadi. Formatni tekshiring.")
+            return await status_msg.edit_text("❌ Fayldan savollar topilmadi. Namunadagidek yozilganiga ishonch hosil qiling.")
             
         await state.update_data(questions=questions)
         
@@ -117,10 +157,11 @@ async def upload_file_handler(message: Message, state: FSMContext):
         )
         await status_msg.edit_text(text, reply_markup=create_subject_keyboard())
     except Exception as e:
+        logger.error(f"Fayl xatosi: {e}")
         await status_msg.edit_text("❌ Xatolik yuz berdi.")
 
 # ==========================================================
-# 3. QUIZBOTDAN FORWARD QILISH
+# 4. QUIZBOTDAN FORWARD QILISH
 # ==========================================================
 @router.callback_query(F.data == "method_poll", CreateTest.choose_method)
 async def method_poll_handler(callback: CallbackQuery, state: FSMContext):
@@ -134,7 +175,7 @@ async def method_poll_handler(callback: CallbackQuery, state: FSMContext):
     text = (
         "<b>📊 QUIZBOTDAN UZATISH</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Endi @QuizBot dagi tayyor viktorinalarni shu yerga <b>Forward</b> qiling.\n"
+        "Endi @QuizBot dagi tayyor viktorinalarni shu yerga <b>Forward (Uzatish)</b> qiling.\n"
         "Har bir yuborgan savolingiz to'plamga qo'shiladi."
     )
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -181,7 +222,7 @@ async def finish_polls_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, reply_markup=create_subject_keyboard())
 
 # ==========================================================
-# 4. FAN, MAVZU VA SOZLAMALAR
+# 5. FAN, MAVZU VA SOZLAMALAR
 # ==========================================================
 @router.callback_query(F.data.startswith("set_subj_"))
 async def process_subject_selection(callback: CallbackQuery, state: FSMContext):
@@ -297,4 +338,5 @@ async def cancel_handler(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
     await callback.message.delete()
-    await callback.message.answer("❌ Bekor qilindi.", reply_markup=main_reply_keyboard(callback.fromuser.id))
+    await callback.message.answer("❌ Bekor qilindi.", reply_markup=main_reply_keyboard(callback.from_user.id))
+    
