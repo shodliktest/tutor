@@ -183,13 +183,12 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
     exp_btn_text = "💡 Izoh rejimi: 🟢 YONIQ" if exp_mode else "💡 Izoh rejimi: 🔴 O'CHIK"
     builder.row(InlineKeyboardButton(text=exp_btn_text, callback_data="toggle_exp_mode"))
 
+        # 🎛 NAVIGATSIYA TUGMALARI (Oldingi/Keyingi olib tashlandi)
     nav_row = []
-    if current_index > 0:
-        nav_row.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data="nav_prev"))
-    if current_index < len(questions) - 1:
-        nav_row.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data="nav_next"))
-    else:
+    # Faqat oxirgi savolga kelganda "Yakunlash" tugmasi chiqadi
+    if current_index == len(questions) - 1:
         nav_row.append(InlineKeyboardButton(text="🏁 Yakunlash", callback_data="nav_finish"))
+
     
     builder.row(*nav_row)
     builder.row(InlineKeyboardButton(text="❌ Testni to'xtatish", callback_data="cancel_test"))
