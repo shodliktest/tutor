@@ -1,7 +1,7 @@
 """
 📄 FAYL PARSER (PRO VERSIYA)
-Endi to'g'ri javoblarni belgilash uchun shunchaki * (yulduzcha) ishlatsangiz ham bo'ladi.
-Masalan: * A) Toshkent
+Endi to'g'ri javoblarni belgilash uchun shunchaki * (yulduzcha), === yoki [TO'G'RI] ishlatsangiz ham bo'ladi.
+Barcha 7 turdagi test namunalarini muammosiz o'qiydi!
 """
 import re
 import logging
@@ -105,27 +105,36 @@ def parse_text(text: str) -> List[Dict]:
                 try: q_data["points"] = int(re.findall(r'\d+', line)[0])
                 except: pass
 
-        # 🔘 TUR 1: BIR JAVOBLI (Yulduzchani taniydi)
+        # 🔘 TUR 1: BIR JAVOBLI (Yulduzchani va === ni taniydi)
         if q_data["type"] == "multiple_choice":
             for line in lines[1:]:
-                # Agar qator A) bilan boshlansa yoki * A) bilan boshlansa
-                if re.search(r'^[A-Za-z][\.\)]', line.replace('*', '').strip()):
-                    is_correct = "[TO'G'RI]" in line.upper() or "*" in line
-                    clean_opt = re.sub(r'\[TO\'G\'RI\]', '', line, flags=re.IGNORECASE).replace('*', '').strip()
+                # === va * belgilari tozalangach A, B harflari qolishini tekshiramiz
+                clean_line_for_check = line.replace('*', '').replace('=', '').strip()
+                if re.search(r'^[A-Za-z][\.\)]', clean_line_for_check):
+                    is_correct = "[TO'G'RI]" in line.upper() or "*" in line or "===" in line
+                    clean_opt = re.sub(r'\[TO\'G\'RI\]', '', line, flags=re.IGNORECASE).replace('*', '').replace('=', '').strip()
                     q_data["options"].append(clean_opt)
-                    if is_correct:
+                    if is_correct and not q_data["correct"]:
                         q_data["correct"] = clean_opt
+            
+            # Agar variantlar topsa, lekin belgilash (===) esdan chiqqan bo'lsa, xato bermay 1-javobni oladi
+            if q_data["options"] and not q_data["correct"]:
+                q_data["correct"] = q_data["options"][0]
 
-        # ☑️ TUR 2: KO'P JAVOBLI (Yulduzchani taniydi)
+        # ☑️ TUR 2: KO'P JAVOBLI (Yulduzchani va === ni taniydi)
         elif q_data["type"] == "multi_select":
             q_data["correct"] = []
             for line in lines[1:]:
-                if re.search(r'^[A-Za-z][\.\)]', line.replace('*', '').strip()):
-                    is_correct = "[TO'G'RI]" in line.upper() or "*" in line
-                    clean_opt = re.sub(r'\[TO\'G\'RI\]', '', line, flags=re.IGNORECASE).replace('*', '').strip()
+                clean_line_for_check = line.replace('*', '').replace('=', '').strip()
+                if re.search(r'^[A-Za-z][\.\)]', clean_line_for_check):
+                    is_correct = "[TO'G'RI]" in line.upper() or "*" in line or "===" in line
+                    clean_opt = re.sub(r'\[TO\'G\'RI\]', '', line, flags=re.IGNORECASE).replace('*', '').replace('=', '').strip()
                     q_data["options"].append(clean_opt)
                     if is_correct:
                         q_data["correct"].append(clean_opt)
+            
+            if q_data["options"] and not q_data["correct"]:
+                q_data["correct"].append(q_data["options"][0])
 
         elif q_data["type"] == "true_false":
             q_data["options"] = ["✅ Ha", "❌ Yo'q"]
@@ -157,6 +166,7 @@ def parse_text(text: str) -> List[Dict]:
                 if re.match(r'^\d+[\.\)]', line) and not line.upper().startswith("TYPE:"):
                     q_data["correct"].append(line.strip())
 
+        # Agar to'g'ri javob topilgan bo'lsa yoki matn kiritish turi bo'lsa, savolni bazaga yozamiz
         if q_data["correct"] or q_data["type"] in ["text_input", "fill_blank"]:
             questions.append(q_data)
             
