@@ -56,7 +56,7 @@ def initialize_firebase():
     if firebase_admin._apps:
         _db = firestore.client()
         from config import FIREBASE_CONFIG
-        _bucket = storage.bucket(FIREBASE_CONFIG.get("storageBucket", ""))
+        _bucket = storage.bucket("karoke-pro.firebasestorage.app")
         _initialized = True
         return True
 
