@@ -8,8 +8,6 @@ from datetime import datetime, timezone
 from google.cloud import firestore
 import logging
 import uuid
-import random
-import string
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +113,6 @@ def get_test(test_id_or_code: str):
 def get_all_tests():
     """Admin panel va Katalog uchun barcha testlarni olish"""
     db = get_db()
-    # "createdAt" veb saytda, "created_at" botda.
     tests = db.collection("tests").stream()
     result = []
     
@@ -152,6 +149,18 @@ def delete_test(test_id: str):
     
     # Keyin asosiy testni o'chiramiz
     db.collection("tests").document(test_id).delete()
+
+def get_user_tests(user_id: int):
+    """Profil uchun foydalanuvchi yaratgan testlarni olish"""
+    db = get_db()
+    tests = db.collection("tests").where("creator_id", "==", user_id).stream()
+    res_list = []
+    for t in tests:
+        data = t.to_dict()
+        data["test_id"] = t.id
+        res_list.append(data)
+    res_list.sort(key=lambda x: x.get("createdAt") or x.get("created_at", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    return res_list
 
 
 # ==========================================================
@@ -204,8 +213,22 @@ def save_result(user_id: int, test_id: str, result_data: dict) -> str:
         
     return result_id
 
+def get_user_results(user_id: int, limit: int = 10):
+    """Profil uchun foydalanuvchining oxirgi ishlagan testlari natijalarini olish"""
+    db = get_db()
+    results = db.collection("results").where("user_id", "==", user_id).stream()
+    
+    res_list = []
+    for r in results:
+        data = r.to_dict()
+        res_list.append(data)
+        
+    res_list.sort(key=lambda x: x.get("completed_at") or x.get("completedAt", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    return res_list[:limit]
+
+
 # ==========================================================
-# 4. REYTING (LEADERBOARD) OPERATSIYALARI (O'ZGARISHSZ QOLDI)
+# 4. REYTING (LEADERBOARD) OPERATSIYALARI
 # ==========================================================
 
 def update_leaderboard(user_id: int, user_name: str, test_id: str, score: float, percentage: float):
@@ -251,4 +274,4 @@ def get_global_leaderboard(limit: int = 20):
             
     res_list.sort(key=lambda x: x.get("avg_score", 0), reverse=True)
     return res_list[:limit]
-                                       
+    
