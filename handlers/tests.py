@@ -3,6 +3,7 @@
 Faqat barqaror test turlari (A, B, C va Rost/Yolg'on).
 Javob berilgach 5 sekund davomida ✅/❌ belgilar va izoh ko'rsatilib,
 keyin avtomatik keyingi savolga o'tadi.
+Ssilka va uzun matnlar xatosi yopilgan.
 """
 import time
 import asyncio
@@ -64,7 +65,9 @@ async def tests_menu_handler(message: Message, state: FSMContext):
     await state.clear()
     await send_categories_menu(message)
 
-@router.message(StateFilter(None), F.text, lambda msg: len(msg.text.strip()) == 6 or len(msg.text.strip()) > 10)
+# DIQQAT: Faqat 6 xonali kod yoki 20+ harfli haqiqiy ID ni qabul qiladi. 
+# Ichida bo'sh joy, ssilka (/) yoki enter bo'lmasligi qat'iy tekshiriladi!
+@router.message(StateFilter(None), F.text, lambda msg: msg.text and ("/" not in msg.text) and ("\n" not in msg.text) and (" " not in msg.text) and (len(msg.text.strip()) == 6 or len(msg.text.strip()) >= 20))
 async def direct_code_handler(message: Message, state: FSMContext):
     test_id = message.text.strip()
     test = get_test(test_id)
@@ -190,7 +193,6 @@ async def send_question(message_or_callback, state: FSMContext, edit: bool = Fal
 # ==========================================================
 @router.callback_query(F.data.startswith("ans_"), TestSolving.answering)
 async def process_button_answer(callback: CallbackQuery, state: FSMContext):
-    # Ikki marta bosib yuborishni oldini olish
     current_state = await state.get_state()
     if not current_state: return
     
@@ -202,12 +204,10 @@ async def process_button_answer(callback: CallbackQuery, state: FSMContext):
     q = questions[current_index]
     test_title = state_data.get("test_data", {}).get("title", "Nomsiz test")
     
-    # Foydalanuvchi javobini saqlash
     user_answers = state_data.get("user_answers", {})
     user_answers[str(current_index)] = answer
     await state.update_data(user_answers=user_answers)
     
-    # To'g'ri javobni aniqlash
     c_ans = q.get("correct", "")
     letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
     
@@ -217,7 +217,7 @@ async def process_button_answer(callback: CallbackQuery, state: FSMContext):
         
     is_correct = (answer.lower() == c_letter.lower())
     
-    # ================= UI QISMI (5 SEKUND KO'RINIB TURADIGAN EKRAN) =================
+    # UI QISMI (5 SEKUND KO'RINIB TURADIGAN EKRAN)
     header = f"<b>📝 {test_title} | {current_index + 1}/{len(questions)}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
     q_text = q.get("question", q.get("text", "Savol matni kiritilmagan"))
     text_body = f"<b>{q_text}</b>\n\n"
@@ -244,7 +244,6 @@ async def process_button_answer(callback: CallbackQuery, state: FSMContext):
     if explanation and explanation not in ["Izoh kiritilmagan", "Izoh kiritilmagan.", "Izoh yo'q"]:
         text_body += f"💡 <b>Izoh:</b> <i>{explanation}</i>\n"
         
-    # Tugmalarni olib tashlaymiz (Faqat to'xtatish qoladi)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="⏳ Keyingi savolga o'tilmoqda...", callback_data="wait"))
     builder.row(InlineKeyboardButton(text="❌ Testni to'xtatish", callback_data="cancel_test"))
@@ -255,13 +254,11 @@ async def process_button_answer(callback: CallbackQuery, state: FSMContext):
     # 5 SEKUND KUTISH
     await asyncio.sleep(5)
     
-    # Agar shu 5 sekund ichida foydalanuvchi "To'xtatish" ni bosmagan bo'lsa, davom etamiz
     if await state.get_state() == TestSolving.answering.state:
         if current_index < len(questions) - 1:
             await state.update_data(current_index=current_index + 1)
             await send_question(callback, state, edit=True)
         else:
-            # Test tugadi
             await finish_test_process(callback.message, state, await state.get_data())
 
 @router.callback_query(F.data == "cancel_test", TestSolving.answering)
@@ -272,7 +269,7 @@ async def cancel_test_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # ==========================================================
-# 4. YAKUNLASH VA BAHOLASH (FAQAT ODDIY TEST UCHUN)
+# 4. YAKUNLASH VA BAHOLASH
 # ==========================================================
 async def finish_test_process(message: Message, state: FSMContext, state_data: dict):
     test = state_data.get("test_data", {})
@@ -322,7 +319,6 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
         "detailed_results": detailed_results 
     }
     
-    # Message obyekti 5 sekundlik kutishdan keyin eskirmasligi uchun chat.id olinadi
     chat_id = message.chat.id
     result_id = save_result(chat_id, test.get("test_id"), result_data)
     user = get_user(chat_id)
@@ -343,7 +339,6 @@ async def finish_test_process(message: Message, state: FSMContext, state_data: d
         f"🎓 <b>Holat:</b> {'🎉 MUVAFFAQIYATLI!' if passed else '❌ YIQILDINGIZ.'}"
     )
     
-    # O'tish ekrani xabarini o'chirib natijani tashlaymiz
     try:
         await message.delete()
     except:
@@ -401,4 +396,4 @@ async def analysis_handler(callback: CallbackQuery):
     if current_chunk: chunks.append(current_chunk)
     for chunk in chunks:
         await callback.message.answer(chunk, parse_mode="HTML", protect_content=True)
-                       
+        
