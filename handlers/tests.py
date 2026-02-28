@@ -456,4 +456,3 @@ async def analysis_handler(callback: CallbackQuery):
 
     for ch in chunks:
         await callback.message.answer(ch, parse_mode="HTML", protect_content=True)
-    
