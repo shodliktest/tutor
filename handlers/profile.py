@@ -88,7 +88,36 @@ async def _show_profile(msg, uid: int, edit: bool = False):
 
 @router.message(F.text == "📊 Natijalarim")
 async def results_msg(message: Message):
-    await _show_results(message, message.from_user.id, page=0)
+    """
+    Natijalar — Web App mavjud bo'lsa, birinchi Web App tugmasini ko'rsatamiz.
+    Foydalanuvchi xohlasa eski (inline) usulni ham tanlashi mumkin.
+    """
+    from config import WEBAPP_BASE_URL
+    uid = message.from_user.id
+
+    if WEBAPP_BASE_URL:
+        from keyboards.keyboards import webapp_history_keyboard
+        from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        history_url = f"{WEBAPP_BASE_URL}/history.html?user_id={uid}"
+        builder.row(InlineKeyboardButton(
+            text="📜 Natijalar tarixi (Web App)",
+            web_app=WebAppInfo(url=history_url)
+        ))
+        builder.row(InlineKeyboardButton(
+            text="📋 Oddiy ro'yxat",
+            callback_data="results_p0"
+        ))
+        await message.answer(
+            "📊 <b>NATIJALARIM</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📱 <b>Web App</b> — chiroyli interfeys, grafiklar va tahlil\n"
+            "📋 <b>Oddiy ro'yxat</b> — chat ichida matn ko'rinishida",
+            reply_markup=builder.as_markup()
+        )
+    else:
+        await _show_results(message, uid, page=0)
 
 
 @router.callback_query(F.data.startswith("results_p"))

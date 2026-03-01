@@ -143,14 +143,32 @@ async def create_start(message: Message, state: FSMContext):
     # Avvalgi kalit xabarni o'chirish
     await clear_key_msg(message.bot, uid, message.chat.id)
 
+    from config import WEBAPP_BASE_URL
     builder = InlineKeyboardBuilder()
+
+    # 🆕 Web App orqali yaratish (eng qulay usul)
+    if WEBAPP_BASE_URL:
+        create_url = f"{WEBAPP_BASE_URL}/create.html"
+        from aiogram.types import WebAppInfo
+        builder.row(InlineKeyboardButton(
+            text="✨ Web App orqali yaratish (yangi!)",
+            web_app=WebAppInfo(url=create_url)
+        ))
+        builder.row(InlineKeyboardButton(text="─── Yoki eski usullar ───", callback_data="noop"))
+
+    # Eski usullar
     builder.row(InlineKeyboardButton(text="📁 Fayl (TXT/PDF/DOCX)", callback_data="method_file"))
     builder.row(InlineKeyboardButton(text="📊 QuizBotdan forward",  callback_data="method_poll"))
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish",        callback_data="cancel_creation"))
 
+    webapp_desc = ""
+    if WEBAPP_BASE_URL:
+        webapp_desc = "✨ <b>Web App</b> — vizual muharrir, savollarni ko'rib chiqish va tahrirlash\n\n"
+
     msg = await message.answer(
         "<b>➕ TEST YARATISH</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{webapp_desc}"
         "📁 <b>Fayl yuklash</b> — TXT, PDF yoki DOCX\n\n"
         "📊 <b>QuizBotdan forward</b> — @QuizBot savollarini uzating\n"
         "   <i>⚠️ Faqat Quiz (viktorina) turi qabul qilinadi!</i>",
@@ -577,6 +595,12 @@ async def hide_key_msg(callback: CallbackQuery):
 # ═══════════════════════════════════════════════════════════
 # 6. BEKOR QILISH
 # ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "noop")
+async def noop_cb(callback: CallbackQuery):
+    """Bo'sh tugma — divider sifatida ishlatiladi"""
+    await callback.answer()
+
 
 @router.callback_query(F.data == "cancel_creation")
 async def cancel_creation(callback: CallbackQuery, state: FSMContext):
