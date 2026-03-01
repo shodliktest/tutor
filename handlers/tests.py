@@ -246,7 +246,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
             return
 
     header = f"<b>📝 {title} | {idx+1}/{len(qs)}{time_txt}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    q_text = q.get("question", q.get("text", "Savol matni yo'q"))
+    q_text = re.sub(r"^\d+[\.\)]\s*", "", q.get("question", q.get("text", "Savol matni yo'q")).strip())
     body   = f"<b>{q_text}</b>\n\n"
     letters = []
     for i, opt in enumerate(q.get("options", [])):
@@ -297,7 +297,7 @@ async def process_answer(callback: CallbackQuery, state: FSMContext):
 
     is_correct = letter.upper() == c_letter.upper()
     header = f"<b>📝 {title} | {idx+1}/{len(qs)}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    q_text = q.get("question", q.get("text", "Savol"))
+    q_text = re.sub(r"^\d+[\.\)]\s*", "", q.get("question", q.get("text", "Savol")).strip())
     body   = f"<b>{q_text}</b>\n\n"
 
     for i, opt in enumerate(q.get("options", [])):
