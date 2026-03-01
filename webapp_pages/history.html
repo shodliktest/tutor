@@ -14,27 +14,19 @@
 }
 [data-theme=dark]{--bg:#0d0820;--card:#140d28;--text:#e8e0ff;--text2:#9ca3af;--text3:#6b7280;--border:rgba(108,63,232,.2)}
 body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(--bg);color:var(--text)}
-
 .nav{position:fixed;top:0;left:0;right:0;height:54px;z-index:500;
   display:flex;align-items:center;justify-content:space-between;padding:0 1rem;background:var(--bg)}
-.logo{font-family:'Unbounded',sans-serif;font-size:1.1rem;font-weight:900;cursor:pointer;
+.logo{font-family:'Unbounded',sans-serif;font-size:1.1rem;font-weight:900;
   background:linear-gradient(135deg,var(--acc),var(--acc2));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .nav-r{display:flex;align-items:center;gap:.4rem}
 .ibtn{width:34px;height:34px;border-radius:99px;border:none;cursor:pointer;font-size:.88rem;
-  background:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center}
+  background:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;color:var(--text)}
 [data-theme=dark] .ibtn{background:rgba(255,255,255,.1)}
-.bbtn{padding:.38rem .82rem;border-radius:99px;font-size:.78rem;font-weight:700;cursor:pointer;
-  border:none;font-family:inherit;background:rgba(255,255,255,.8);color:var(--text2)}
-[data-theme=dark] .bbtn{background:rgba(255,255,255,.1)}
-
 .page{padding:66px 1rem 3rem;max-width:640px;margin:0 auto}
-
 .pg-hdr{margin-bottom:1rem}
 .pg-hdr h1{font-family:'Unbounded',sans-serif;font-size:1.1rem;font-weight:900;margin-bottom:.18rem}
 .pg-hdr p{font-size:.76rem;color:var(--text3)}
-
-/* STATS */
 .sbar{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:1rem}
 .sb{background:var(--card);border-radius:13px;padding:.7rem .4rem;text-align:center;
   border:1px solid var(--border);box-shadow:var(--shadow)}
@@ -42,8 +34,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(
   background:linear-gradient(135deg,var(--acc),var(--acc2));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .sl{font-size:.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-top:.06rem}
-
-/* FILTER TAGS */
 .filters{display:flex;gap:.3rem;overflow-x:auto;padding-bottom:.3rem;margin-bottom:.9rem}
 .filters::-webkit-scrollbar{display:none}
 .ftag{padding:.32rem .78rem;border-radius:99px;font-size:.74rem;font-weight:700;
@@ -51,10 +41,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(
   color:var(--text2);transition:all .2s;white-space:nowrap;font-family:inherit;flex-shrink:0}
 .ftag.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border-color:transparent;
   box-shadow:0 3px 12px rgba(108,63,232,.28)}
-
-/* DATE ACCORDION */
 .dgrp{margin-bottom:.75rem}
-
 .dhdr{display:flex;align-items:center;justify-content:space-between;
   padding:.82rem 1rem;border-radius:14px;cursor:pointer;
   background:var(--card);border:1.5px solid var(--border);transition:all .22s;user-select:none}
@@ -72,18 +59,12 @@ body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(
   background:rgba(108,63,232,.08);border-radius:99px;padding:.15rem .48rem;border:1px solid rgba(108,63,232,.12)}
 .dh-arr{font-size:.7rem;color:var(--text3);transition:transform .25s}
 .dhdr.open .dh-arr{transform:rotate(180deg)}
-
-.ditems{display:none;flex-direction:column;gap:.38rem;
-  padding:.5rem .5rem .55rem;
-  background:var(--card);
-  border:1.5px solid rgba(108,63,232,.4);border-top:none;
+.ditems{display:none;flex-direction:column;gap:.38rem;padding:.5rem .5rem .55rem;
+  background:var(--card);border:1.5px solid rgba(108,63,232,.4);border-top:none;
   border-bottom-left-radius:14px;border-bottom-right-radius:14px}
 .ditems.open{display:flex}
-
-/* RESULT CARD */
 .rc{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
-  padding:.72rem .8rem;border-radius:11px;
-  background:var(--bg);border:1px solid var(--border);transition:all .2s}
+  padding:.72rem .8rem;border-radius:11px;background:var(--bg);border:1px solid var(--border);transition:all .2s}
 .rc:hover{border-color:rgba(108,63,232,.28);background:rgba(108,63,232,.02)}
 .rc-l{flex:1;min-width:0}
 .rc-nm{font-size:.84rem;font-weight:800;color:var(--text);
@@ -93,67 +74,57 @@ body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(
 .rc-pct{font-family:'Unbounded',sans-serif;font-size:.98rem;font-weight:900}
 .sg{color:#059669}.sa{color:#d97706}.sr{color:#ef4444}
 .rc-frac{font-size:.63rem;color:var(--text3);font-weight:600}
-.tbtn{padding:.26rem .6rem;border-radius:7px;font-size:.66rem;font-weight:700;
-  cursor:pointer;border:1.5px solid rgba(108,63,232,.22);
-  background:rgba(108,63,232,.06);color:var(--acc);
-  font-family:inherit;transition:all .2s;white-space:nowrap}
-.tbtn:hover{background:rgba(108,63,232,.18);border-color:var(--acc)}
-
-/* LOADER / EMPTY */
-.sp{width:28px;height:28px;border:3px solid rgba(108,63,232,.15);border-top-color:var(--acc);
-  border-radius:50%;animation:spin .7s linear infinite;margin:2.5rem auto}
-@keyframes spin{to{transform:rotate(360deg)}}
-.emp{text-align:center;padding:2.5rem 1rem}
+.emp{text-align:center;padding:3rem 1rem;color:var(--text2)}
 .emp-ico{font-size:2.5rem;margin-bottom:.6rem}
-.emp-t{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.emp-t{font-size:.92rem;font-weight:800;margin-bottom:.22rem}
 .emp-p{font-size:.76rem;color:var(--text3)}
+.loading{text-align:center;padding:3rem 1rem}
+.sp{width:32px;height:32px;border:3px solid rgba(108,63,232,.15);border-top-color:var(--acc);
+  border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-
-<nav class="nav">
-  <div class="logo" onclick="goTo('index.html')">TestPro</div>
+<div class="nav">
+  <span class="logo">📜 Tarix</span>
   <div class="nav-r">
-    <button class="bbtn" onclick="goTo('dashboard.html')">← Orqaga</button>
     <button class="ibtn" id="tbtn">🌙</button>
+    <button class="ibtn" onclick="closeWA()">✕</button>
   </div>
-</nav>
+</div>
 
 <div class="page">
   <div class="pg-hdr">
-    <h1>📜 Natijalar Tarixi</h1>
-    <p>Barcha ishlangan testlar kunlar tartibida</p>
+    <h1>Natijalar Tarixi</h1>
+    <p id="pg-sub">Barcha yechilgan testlar</p>
   </div>
-
   <div class="sbar">
-    <div class="sb"><div class="sv" id="st-all">0</div><div class="sl">Jami</div></div>
+    <div class="sb"><div class="sv" id="st-all">—</div><div class="sl">Jami</div></div>
     <div class="sb"><div class="sv" id="st-avg">—</div><div class="sl">O'rtacha</div></div>
     <div class="sb"><div class="sv" id="st-best">—</div><div class="sl">Eng yaxshi</div></div>
   </div>
-
   <div class="filters" id="filters">
-    <button class="ftag on" onclick="setFilter('all',this)">🗂 Barchasi</button>
+    <button class="ftag on" onclick="setFilter('all',this)">Barchasi</button>
   </div>
-
-  <div id="content"><div class="sp"></div></div>
+  <div id="content">
+    <div class="loading"><div class="sp"></div><p style="font-size:.82rem;color:var(--text2)">Yuklanmoqda...</p></div>
+  </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="js/firebase.js"></script>
 <script>
-/* THEME */
 const TH={
-  get(){return localStorage.getItem('tp_theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')},
-  set(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('tp_theme',t);
-    const b=document.getElementById('tbtn');if(b)b.textContent=t==='dark'?'☀️':'🌙';},
+  get(){try{return localStorage.getItem('tp_theme')}catch{return null}||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')},
+  set(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('tp_theme',t)}catch{};
+    const b=document.getElementById('tbtn');if(b)b.textContent=t==='dark'?'☀️':'🌙'},
   toggle(){this.set(this.get()==='dark'?'light':'dark')}
 };
 TH.set(TH.get());
 document.getElementById('tbtn').onclick=()=>TH.toggle();
 
-const ICON={english:'🇬🇧',arabic:'🕌',russian:'🇷🇺',turkish:'🇹🇷',math:'🧮',it:'💻',science:'🔬',religion:'📖',other:'📚'};
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
+function closeWA(){if(tg)tg.close();}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 let ALL=[];
 let CUR='all';
@@ -165,7 +136,6 @@ window.setFilter=(f,el)=>{
   render(ALL);
 };
 
-/* helpers */
 function getTs(ts){
   if(!ts)return null;
   try{return ts.toDate?ts.toDate():new Date(ts.seconds?ts.seconds*1000:ts);}catch{return null;}
@@ -187,146 +157,114 @@ function timeStr(ts){
 }
 function elapsed2str(s){s=s||0;return Math.floor(s/60)+'d '+String(s%60).padStart(2,'0')+'s';}
 
-/* RENDER */
 function render(results){
   const wrap=document.getElementById('content');
-  const list=CUR==='all'?results:results.filter(r=>(r.subject||'other')===CUR);
-
+  const list=CUR==='all'?results:results.filter(r=>(r.subject||r.category||'other')===CUR);
   if(!list.length){
     wrap.innerHTML=`<div class="emp"><div class="emp-ico">📭</div>
       <div class="emp-t">Natija topilmadi</div>
-      <div class="emp-p">Bu fan bo'yicha hali test ishlanmagan</div></div>`;
+      <div class="emp-p">Bu filtr bo'yicha hali test ishlanmagan</div></div>`;
     return;
   }
-
-  /* Group by day */
   const groups={};
   list.forEach(r=>{
-    const k=dayKey(r.completedAt);
-    if(!groups[k])groups[k]={label:dayLabel(r.completedAt),items:[]};
+    const k=dayKey(r.completedAt||r.created_at||r.timestamp);
+    if(!groups[k])groups[k]={label:dayLabel(r.completedAt||r.created_at||r.timestamp),items:[]};
     groups[k].items.push(r);
   });
   const keys=Object.keys(groups).sort((a,b)=>b-a);
-
   wrap.innerHTML='';
   keys.forEach((k,gi)=>{
     const g=groups[k];
     const isFirst=gi===0;
-    const avg=Math.round(g.items.reduce((s,r)=>s+(r.score||0),0)/g.items.length);
-
-    const gEl=document.createElement('div');
-    gEl.className='dgrp';
-
+    const avg=Math.round(g.items.reduce((s,r)=>s+(r.score||r.percentage||0),0)/g.items.length);
+    const gEl=document.createElement('div');gEl.className='dgrp';
     const hdr=document.createElement('div');
     hdr.className='dhdr'+(isFirst?' open':'');
-    hdr.innerHTML=`
-      <div class="dh-l">
-        <div class="dh-ico">📅</div>
-        <div>
-          <div class="dh-date">${g.label}</div>
-          <div class="dh-info">O'rtacha: ${avg}% &bull; ${g.items.length} ta</div>
-        </div>
+    hdr.innerHTML=`<div class="dh-l">
+      <div class="dh-ico">📅</div>
+      <div>
+        <div class="dh-date">${esc(g.label)}</div>
+        <div class="dh-info">${g.items.length} ta test · O'rtacha ${avg}%</div>
       </div>
-      <div class="dh-r">
-        <span class="dh-cnt">${g.items.length}</span>
-        <span class="dh-arr">▼</span>
-      </div>`;
-
+    </div>
+    <div class="dh-r">
+      <span class="dh-cnt">${g.items.length}</span>
+      <span class="dh-arr">▼</span>
+    </div>`;
+    hdr.onclick=()=>{hdr.classList.toggle('open');items.classList.toggle('open');};
     const items=document.createElement('div');
     items.className='ditems'+(isFirst?' open':'');
-
     g.items.forEach(r=>{
-      const sub=getSubject(r.subject||'other');
-      const icon=ICON[r.subject||'other']||'📚';
-      const cls=r.score>=80?'sg':r.score>=50?'sa':'sr';
-      const c=document.createElement('div');
-      c.className='rc';
-      c.innerHTML=`
-        <div class="rc-l">
-          <div class="rc-nm">${esc(r.testTitle||'Test')}</div>
-          <div class="rc-meta">
-            <span>${icon} ${sub.label}</span>
-            <span>🕐 ${timeStr(r.completedAt)}</span>
-            <span>📝 ${r.total||0} savol</span>
-            ${r.elapsed?`<span>⏱ ${elapsed2str(r.elapsed)}</span>`:''}
-          </div>
+      const pct=r.score||r.percentage||0;
+      const pc=pct>=80?'sg':pct>=60?'sa':'sr';
+      const ts=timeStr(r.completedAt||r.created_at||r.timestamp);
+      const el=document.createElement('div');
+      el.className='rc';
+      el.innerHTML=`<div class="rc-l">
+        <div class="rc-nm">${esc(r.testTitle||r.title||r.test_title||'Test')}</div>
+        <div class="rc-meta">
+          ${ts?`<span>🕐 ${esc(ts)}</span>`:''}
+          ${r.time_spent?`<span>⏱ ${elapsed2str(r.time_spent)}</span>`:''}
+          ${r.correct_answers!==undefined?`<span>✅ ${r.correct_answers}/${r.total_questions||'?'}</span>`:''}
+          <span>${r.passed?'🏆 O\'tdi':'❌ O\'tmadi'}</span>
         </div>
-        <div class="rc-r">
-          <div class="rc-pct ${cls}">${r.score||0}%</div>
-          <div class="rc-frac">${r.correct||0} / ${r.total||0}</div>
-          <button class="tbtn" onclick="goTo('review.html?id=${r.id}')">🔍 Tahlil</button>
-        </div>`;
-      items.appendChild(c);
+      </div>
+      <div class="rc-r">
+        <div class="rc-pct ${pc}">${pct}%</div>
+        <div class="rc-frac">${r.correct_answers||0}/${r.total_questions||'?'}</div>
+      </div>`;
+      items.appendChild(el);
     });
-
-    hdr.onclick=()=>{
-      const open=hdr.classList.contains('open');
-      hdr.classList.toggle('open',!open);
-      items.classList.toggle('open',!open);
-    };
-
-    gEl.appendChild(hdr);
-    gEl.appendChild(items);
+    gEl.appendChild(hdr);gEl.appendChild(items);
     wrap.appendChild(gEl);
   });
 }
-/* TELEGRAM WEB APP */
-const tg=window.Telegram?.WebApp;
-if(tg){tg.ready();tg.expand();}
 
-
-/* MAIN */
-(async()=>{
-  let CU=null;
-  try{CU=await AuthHelpers.requireAuth('login.html');if(!CU)return;}
-  catch(e){goTo('login.html');return;}
-
-  /* Check for subject filter from URL (from dashboard "Barchasini ko'rish") */
-  const urlSubj=new URLSearchParams(location.search).get('subject');
-
+// ── MA'LUMOT OLISH: URL dan base64 JSON ─────────────────
+(function init(){
   try{
-    const res=await DB.getMyResults(CU.uid,0);
-    ALL=res;
-
-    /* Stats */
-    document.getElementById('st-all').textContent=res.length;
-    if(res.length){
-      const avg=Math.round(res.reduce((s,r)=>s+(r.score||0),0)/res.length);
-      const best=Math.max(...res.map(r=>r.score||0));
+    const params=new URLSearchParams(location.search);
+    const raw=params.get('data');
+    if(!raw){
+      document.getElementById('content').innerHTML=`<div class="emp">
+        <div class="emp-ico">❌</div>
+        <div class="emp-t">Ma'lumot topilmadi</div>
+        <div class="emp-p">Bot natijalarni yubormadi</div>
+      </div>`;
+      return;
+    }
+    const results=JSON.parse(atob(decodeURIComponent(raw)));
+    ALL=Array.isArray(results)?results:[];
+    
+    // Stats
+    document.getElementById('st-all').textContent=ALL.length;
+    if(ALL.length){
+      const avg=Math.round(ALL.reduce((s,r)=>s+(r.score||r.percentage||0),0)/ALL.length);
+      const best=Math.max(...ALL.map(r=>r.score||r.percentage||0));
       document.getElementById('st-avg').textContent=avg+'%';
       document.getElementById('st-best').textContent=best+'%';
     }
-
-    /* Build subject filter buttons */
-    const subjects=[...new Set(res.map(r=>r.subject||'other'))];
+    
+    // Subject filters
+    const subjects=[...new Set(ALL.map(r=>r.subject||r.category||'other'))];
     const fr=document.getElementById('filters');
     subjects.forEach(s=>{
-      const sub=getSubject(s);const icon=ICON[s]||'📚';
       const btn=document.createElement('button');
-      btn.className='ftag';btn.textContent=icon+' '+sub.label;
-      btn.onclick=()=>setFilter(s,btn);
+      btn.className='ftag';
+      btn.textContent=s;
+      btn.onclick=function(){setFilter(s,this);};
       fr.appendChild(btn);
     });
-
-    /* If opened from dashboard with subject filter */
-    if(urlSubj&&urlSubj!=='all'){
-      const btn=fr.querySelector(`[data-subj="${urlSubj}"]`);
-      CUR=urlSubj;
-      /* Mark correct button active */
-      fr.querySelectorAll('.ftag').forEach(b=>{
-        if(b.textContent.includes(getSubject(urlSubj).label)){
-          b.classList.add('on');
-          fr.querySelector('.ftag:first-child').classList.remove('on');
-        }
-      });
-    }
-
-    render(res);
+    
+    render(ALL);
   }catch(e){
-    document.getElementById('content').innerHTML=
-      `<div class="emp"><div class="emp-ico">❌</div>
-        <div class="emp-t">Xatolik yuz berdi</div>
-        <div class="emp-p">${e.message}</div></div>`;
+    console.error('History init err:',e);
+    document.getElementById('content').innerHTML=`<div class="emp">
+      <div class="emp-ico">❌</div>
+      <div class="emp-t">Xatolik</div>
+      <div class="emp-p">${e.message||'Noma\'lum xatolik'}</div>
+    </div>`;
   }
 })();
 </script>
