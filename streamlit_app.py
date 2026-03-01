@@ -1,264 +1,242 @@
-"""
-🌐 STREAMLIT WEB INTERFEYSI (PRO SECURE VERSIYA)
-Parol bilan himoyalangan va Firebase limitlarini tejovchi Kesh (Cache) tizimiga ega.
-"""
+"""🌐 Streamlit Admin Panel"""
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from datetime import datetime
+import time
 
-# Bazaviy funksiyalarni import qilish
-from firebase.config import initialize_firebase
-from firebase.db import (
-    get_all_tests, get_all_users, get_global_leaderboard, 
-    block_user, delete_test
-)
-from bot import run_bot_in_background
-from config import SUBJECTS
+st.set_page_config(page_title="Quiz Bot", page_icon="🎓", layout="wide")
+
 
 # ══════════════════════════════════════════════════════════
-# 1. SAHIFA SOZLAMALARI (ENG TEPADA BO'LISHI SHART)
-# ══════════════════════════════════════════════════════════
-st.set_page_config(
-    page_title="Quiz Bot | Admin Panel",
-    page_icon="🔒",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# ══════════════════════════════════════════════════════════
-# 2. BOTNI VA BAZANI ISHGA TUSHIRISH (PAROLDAN OLDIN!)
+# Firebase — bir marta
 # ══════════════════════════════════════════════════════════
 @st.cache_resource
-def init_system():
-    """Bot va Firebase faqat 1 marta ishga tushadi"""
-    initialize_firebase()
-    bot_thread = run_bot_in_background()
-    return bot_thread
-
-# Dastur ishlashi bilan bot uyg'onadi, parol kiritishni kutib o'tirmaydi
-bot_thread = init_system()
-
-@st.cache_data(ttl=300) 
-def load_data():
-    """Barcha ma'lumotlarni tortish (Keshlangan)"""
-    users = get_all_users()
-    tests = get_all_tests()
-    leaders = get_global_leaderboard(limit=50)
-    return users, tests, leaders
-
-# Ma'lumotlarni yuklash (tezkor ishlaydi)
-users_data, tests_data, leaders_data = load_data()
+def _start_firebase():
+    from firebase.config import init_firebase
+    return init_firebase()
 
 
 # ══════════════════════════════════════════════════════════
-# 3. XAVFSIZLIK: LOGIN TIZIMI (ENDI BOTGA XALAL BERMAYDI)
+# Bot — bitta thread, hech qachon ikki marta emas
+#
+# st.cache_resource Streamlit Cloud da PROCESS miqyosida
+# ishlaydi — sahifa har yangilansa ham bu funksiya
+# faqat BIR MARTA chaqiriladi.
 # ══════════════════════════════════════════════════════════
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+@st.cache_resource
+def _start_bot():
+    # Kichik kutish — Firebase tayyor bo'lsin
+    time.sleep(1)
+    try:
+        from bot import run_bot
+        thread = run_bot()
+        return thread
+    except Exception as e:
+        return None
 
-if not st.session_state.authenticated:
-    st.title("🔒 Tizimga kirish")
-    st.write("Bu sahifa faqat administratorlar uchun mo'ljallangan.")
-    
-    pwd = st.text_input("Parolni kiriting:", type="password")
-    
-    if st.button("Kirish"):
-        correct_password = st.secrets.get("ADMIN_PASSWORD", "admin123")
-        
-        if pwd == correct_password:
-            st.session_state.authenticated = True
-            st.rerun() 
-        else:
-            st.error("❌ Noto'g'ri parol!")
-            
-    st.stop() # Sayt shu yerda to'xtaydi, lekin tepadagi bot_thread ishlab yotaveradi!
 
-# ======================= BUNDAN UYOG'I FAQAT ADMIN UCHUN =======================
+firebase_ok = _start_firebase()
+bot_thread  = _start_bot()
 
-# ══════════════════════════════════════════════════════════
-# 4. YON PANEL (SIDEBAR) VA NAVIGATSIYA
-# ══════════════════════════════════════════════════════════
+
+# ── Sidebar ───────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3413/3413535.png", width=100)
-    st.title("🎓 Quiz Bot Pro")
-    
-    st.markdown("### 🤖 Bot Holati")
+    st.title("🎓 Quiz Bot")
+
     if bot_thread and bot_thread.is_alive():
-        st.success("🟢 Bot faol (Online)")
+        st.success("🤖 Bot: Ishlayapti ✅")
     else:
-        st.error("🔴 Bot to'xtagan")
-        
-    st.markdown("---")
-    menu = st.radio(
-        "📋 Menyu",
-        ["📊 Bosh Panel (Dashboard)", "👥 Foydalanuvchilar", "📋 Testlar Bazasi", "🏆 Reyting", "⚙️ Sozlamalar (Secrets)"]
-    )
-    st.markdown("---")
-    
-    if st.button("🚪 Tizimdan chiqish"):
-        st.session_state.authenticated = False
-        st.rerun()
-        
-    st.caption("© 2026 Abduvali Quiz LMS")
+        st.error("🤖 Bot: Ishlamayapti ❌")
+        if st.button("🔄 Botni qayta ishga tushirish"):
+            # cache ni tozalash — keyingi refresh da qayta ishga tushadi
+            st.cache_resource.clear()
+            st.rerun()
+
+    st.divider()
+    page = st.radio("Bo'lim:", [
+        "🏠 Asosiy", "📋 Testlar", "👥 Foydalanuvchilar",
+        "🏆 Reyting", "📊 Statistika", "⚙️ Secrets"
+    ], label_visibility="collapsed")
 
 
-# ══════════════════════════════════════════════════════════
-# 5. ASOSIY SAHIFA MANTIQI
-# ══════════════════════════════════════════════════════════
-
-# ----------------------------------------------------------
-# 📊 BOSH PANEL (DASHBOARD)
-# ----------------------------------------------------------
-if menu == "📊 Bosh Panel (Dashboard)":
-    st.header("📊 Tizimning Umumiy Holati")
-    
-    if st.button("🔄 Ma'lumotlarni yangilash"):
-        load_data.clear() 
-        st.rerun()
-        
-    col1, col2, col3, col4 = st.columns(4)
-    total_users = len(users_data)
-    total_tests = len(tests_data)
-    total_solves = sum([t.get("solve_count", 0) for t in tests_data])
-    
-    avg_sys_score = sum([u.get("avg_score", 0) for u in users_data if u.get("total_tests", 0) > 0])
-    active_users = len([u for u in users_data if u.get("total_tests", 0) > 0])
-    avg_sys_score = (avg_sys_score / active_users) if active_users > 0 else 0
-
-    col1.metric("👥 Foydalanuvchilar", f"{total_users} ta")
-    col2.metric("📋 Jami Testlar", f"{total_tests} ta")
-    col3.metric("🎯 Ishlangan testlar", f"{total_solves} marta")
-    col4.metric("📈 O'rtacha reyting", f"{avg_sys_score:.1f}%")
-
-    st.markdown("---")
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        st.subheader("🗂 Fanlar bo'yicha testlar")
-        if tests_data:
-            df_tests = pd.DataFrame(tests_data)
-            if 'category' not in df_tests.columns: df_tests['category'] = "Boshqa"
-            fig_pie = px.pie(df_tests, names='category', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_pie, use_container_width=True)
-        else:
-            st.info("Testlar yo'q.")
-
-    with c2:
-        st.subheader("🏆 Eng faol 5 ta foydalanuvchi")
-        if users_data:
-            df_users = pd.DataFrame(users_data)
-            df_active = df_users[df_users['total_tests'] > 0].sort_values(by='total_tests', ascending=False).head(5)
-            if not df_active.empty:
-                fig_bar = px.bar(df_active, x='name', y='total_tests', text='total_tests', color='name')
-                fig_bar.update_traces(textposition='outside')
-                st.plotly_chart(fig_bar, use_container_width=True)
-            else:
-                st.info("Hali test ishlaganlar yo'q.")
-        else:
-            st.info("Foydalanuvchilar yo'q.")
-
-# ----------------------------------------------------------
-# 👥 FOYDALANUVCHILAR
-# ----------------------------------------------------------
-elif menu == "👥 Foydalanuvchilar":
-    st.header("👥 Tizim Foydalanuvchilari")
-    
-    if users_data:
-        df_users = pd.DataFrame(users_data)
-        display_df = df_users[['telegram_id', 'name', 'username', 'role', 'total_tests', 'avg_score', 'is_blocked']].copy()
-        display_df['avg_score'] = display_df['avg_score'].round(1).astype(str) + "%"
-        display_df.columns = ['ID', 'Ism', 'Username', 'Rol', 'Yechgan testlari', 'O\'rtacha natija', 'Bloklanganmi?']
-        
-        search = st.text_input("🔍 ID yoki Ism bo'yicha qidirish:")
-        if search:
-            display_df = display_df[
-                display_df['Ism'].str.contains(search, case=False, na=False) | 
-                display_df['ID'].astype(str).str.contains(search)
-            ]
-            
-        st.dataframe(display_df, use_container_width=True)
-        
-        st.markdown("### 🚫 Foydalanuvchini bloklash / ochish")
-        col_b1, col_b2 = st.columns([3, 1])
-        with col_b1:
-            target_id = st.selectbox("Tanlang (ID - Ism):", df_users.apply(lambda row: f"{row['telegram_id']} - {row['name']}", axis=1))
-        
-        with col_b2:
-            st.write(""); st.write("")
-            if st.button("Holatini o'zgartirish", use_container_width=True):
-                uid = int(target_id.split(" - ")[0])
-                current_status = df_users[df_users['telegram_id'] == uid]['is_blocked'].values[0]
-                block_user(uid, not current_status)
-                load_data.clear() 
-                st.success("✅ Muvaffaqiyatli! Sahifa yangilanmoqda...")
-                st.rerun()
-    else:
-        st.warning("Hozircha bazada foydalanuvchilar yo'q.")
-
-# ----------------------------------------------------------
-# 📋 TESTLAR BAZASI
-# ----------------------------------------------------------
-elif menu == "📋 Testlar Bazasi":
-    st.header("📋 Yaratilgan Testlar")
-    
-    if tests_data:
-        df_tests = pd.DataFrame(tests_data)
-        df_tests['questions_count'] = df_tests['questions'].apply(lambda x: len(x) if isinstance(x, list) else 0)
-        df_tests['created_at'] = pd.to_datetime(df_tests['created_at']).dt.strftime('%Y-%m-%d %H:%M')
-        
-        display_tests = df_tests[['test_id', 'title', 'category', 'difficulty', 'questions_count', 'solve_count', 'visibility', 'created_at']]
-        display_tests.columns = ['Test ID', 'Nomi', 'Fan', 'Qiyinlik', 'Savollar soni', 'Ishlangan', 'Maxfiylik', 'Yaratilgan sana']
-        
-        st.dataframe(display_tests, use_container_width=True)
-        
-        st.markdown("### 🗑 Testni butunlay o'chirish")
-        col_t1, col_t2 = st.columns([3, 1])
-        with col_t1:
-            target_test = st.selectbox("O'chirmoqchi bo'lgan testni tanlang:", df_tests.apply(lambda row: f"{row['test_id']} - {row['title']}", axis=1))
-            
-        with col_t2:
-            st.write(""); st.write("")
-            if st.button("🗑 O'chirish", type="primary", use_container_width=True):
-                t_id = target_test.split(" - ")[0]
-                delete_test(t_id)
-                load_data.clear() 
-                st.success("✅ Test o'chirildi!")
-                st.rerun()
-    else:
-        st.warning("Hozircha bazada testlar yo'q.")
-
-# ----------------------------------------------------------
-# 🏆 REYTING
-# ----------------------------------------------------------
-elif menu == "🏆 Reyting":
-    st.header("🏆 Global Reyting (TOP 50)")
-    if leaders_data:
-        df_leaders = pd.DataFrame(leaders_data)
-        df_leaders['avg_score'] = df_leaders['avg_score'].round(1).astype(str) + "%"
-        display_leaders = df_leaders[['name', 'username', 'avg_score', 'total_tests']]
-        display_leaders.index += 1
-        display_leaders.columns = ['Ism', 'Username', 'O\'rtacha Foiz', 'Ishlagan testlari']
-        st.table(display_leaders)
-    else:
-        st.info("Reyting shakllanishi uchun foydalanuvchilar kamida 1 ta test ishlagan bo'lishi kerak.")
-
-# ----------------------------------------------------------
-# ⚙️ SOZLAMALAR (SECRETS QO'LLANMASI)
-# ----------------------------------------------------------
-elif menu == "⚙️ Sozlamalar (Secrets)":
-    st.header("⚙️ Tizim Sozlamalari")
-    st.info("Streamlit Cloud dagi Secrets bo'limiga quyidagilarni kiritish esdan chiqmasin.")
-    
+if not firebase_ok:
+    st.error("❌ Firebase ulanmadi! Secrets ni tekshiring.")
     st.code("""
-BOT_TOKEN = "SIZNING_TELEGRAM_BOT_TOKENINGIZ"
-ADMIN_IDS = "123456789, 987654321"
+BOT_TOKEN = "..."
+ADMIN_IDS = "123456789"
 
-# Saytga kirish uchun parolingiz (o'zingiz xohlagan parolni yozing)
-ADMIN_PASSWORD = "meni_maxfiy_parolim"
+[firebase]
+api_key = "..."
+project_id = "..."
+storage_bucket = "....appspot.com"
+auth_domain = "....firebaseapp.com"
+messaging_sender_id = "..."
+app_id = "..."
+database_url = ""
 
 [firebase_sa]
 type = "service_account"
-# ... qolgan firebase kalitlari ...
+project_id = "..."
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
+client_email = "...@....iam.gserviceaccount.com"
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+universe_domain = "googleapis.com"
+""", language="toml")
+    st.stop()
+
+
+from firebase.db import get_all_tests, get_all_users, get_global_leaderboard
+from config import SUBJECTS, DIFFICULTY
+
+
+# ═══════════════ ASOSIY ═══════════════
+if page == "🏠 Asosiy":
+    st.title("🎓 Quiz Bot — Admin Panel")
+    tests = get_all_tests(200)
+    users = get_all_users(500)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("📋 Testlar",          len(tests))
+    c2.metric("👥 Foydalanuvchilar", len(users))
+    c3.metric("📈 O'rtacha ball",
+              f"{sum(u.get('avg_score',0) for u in users)/len(users):.1f}%" if users else "—")
+    c4.metric("🔄 Jami urinishlar",  sum(t.get("total_attempts",0) for t in tests))
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📋 So'nggi testlar")
+        for t in tests[:8]:
+            de = {"easy":"🟢","medium":"🟡","hard":"🔴","expert":"⚡"}.get(t.get("difficulty",""),"⚪")
+            st.write(f"{de} **{t.get('title','')}** — {t.get('total_attempts',0)} urinish")
+    with col2:
+        st.subheader("👥 So'nggi foydalanuvchilar")
+        for u in users[:8]:
+            st.write(f"👤 **{u.get('name','')}** — {u.get('avg_score',0):.0f}% ({u.get('total_tests',0)} test)")
+
+
+# ═══════════════ TESTLAR ═══════════════
+elif page == "📋 Testlar":
+    st.title("📋 Testlar")
+    tests = get_all_tests(200)
+    c1, c2, c3 = st.columns(3)
+    sf = c1.selectbox("Fan:", ["Barchasi"] + SUBJECTS)
+    df = c2.selectbox("Qiyinlik:", ["Barchasi"] + list(DIFFICULTY.values()))
+    sr = c3.text_input("🔍 Qidirish:")
+    if sf != "Barchasi":
+        tests = [t for t in tests if t.get("subject") == sf]
+    if df != "Barchasi":
+        dk = {v: k for k, v in DIFFICULTY.items()}.get(df)
+        tests = [t for t in tests if t.get("difficulty") == dk]
+    if sr:
+        tests = [t for t in tests if sr.lower() in t.get("title","").lower()]
+    st.write(f"**{len(tests)} ta test**")
+    for t in tests:
+        de = {"easy":"🟢","medium":"🟡","hard":"🔴","expert":"⚡"}.get(t.get("difficulty",""),"⚪")
+        with st.expander(f"{de} {t.get('title','')} — {t.get('subject','')}"):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Savollar",    t.get("question_count", 0))
+            c2.metric("Urinishlar",  t.get("total_attempts", 0))
+            c3.metric("O'rtacha",    f"{t.get('avg_score',0):.1f}%")
+            c4.metric("O'tish balli",f"{t.get('passing_score',60)}%")
+            st.code(t.get("test_id",""), language=None)
+
+
+# ═══════════════ FOYDALANUVCHILAR ═══════════════
+elif page == "👥 Foydalanuvchilar":
+    st.title("👥 Foydalanuvchilar")
+    users = get_all_users(500)
+    sr = st.text_input("🔍 Qidirish:")
+    if sr:
+        users = [u for u in users if sr.lower() in u.get("name","").lower()]
+    st.write(f"**{len(users)} ta foydalanuvchi**")
+    import pandas as pd
+    df = pd.DataFrame([{
+        "ID":       u.get("telegram_id",""),
+        "Ism":      u.get("name",""),
+        "Testlar":  u.get("total_tests", 0),
+        "O'rtacha": f"{u.get('avg_score',0):.1f}%",
+        "Holat":    "🚫" if u.get("is_blocked") else "✅",
+    } for u in users])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ═══════════════ REYTING ═══════════════
+elif page == "🏆 Reyting":
+    st.title("🏆 Reyting")
+    users  = get_global_leaderboard(50)
+    medals = ["🥇","🥈","🥉"] + ["🏅"] * 47
+    for i, u in enumerate(users):
+        c1, c2, c3 = st.columns([1, 4, 2])
+        c1.write(medals[i] if i < 50 else f"{i+1}.")
+        c2.write(f"**{u.get('name','')}**")
+        c3.write(f"{u.get('avg_score',0):.1f}% / {u.get('total_tests',0)} test")
+
+
+# ═══════════════ STATISTIKA ═══════════════
+elif page == "📊 Statistika":
+    st.title("📊 Statistika")
+    tests = get_all_tests(500)
+    users = get_all_users(500)
+    c1, c2 = st.columns(2)
+    import pandas as pd
+    with c1:
+        st.subheader("Fan bo'yicha testlar")
+        sc = {}
+        for t in tests:
+            k = t.get("subject","?")
+            sc[k] = sc.get(k, 0) + 1
+        if sc:
+            st.bar_chart(pd.DataFrame({"Son": sc}))
+    with c2:
+        st.subheader("Qiyinlik bo'yicha")
+        dc = {}
+        for t in tests:
+            k = t.get("difficulty","?")
+            dc[k] = dc.get(k, 0) + 1
+        if dc:
+            st.bar_chart(pd.DataFrame({"Son": dc}))
+
+
+# ═══════════════ SECRETS ═══════════════
+elif page == "⚙️ Secrets":
+    st.title("⚙️ Secrets ko'rsatmasi")
+    st.markdown("**Streamlit Cloud → App settings → Secrets** bo'limiga kiriting:")
+    st.code("""
+BOT_TOKEN = "bot_token_shu_yerga"
+ADMIN_IDS = "123456789,987654321"
+
+[firebase]
+api_key = "AIzaSy..."
+project_id = "project-id"
+storage_bucket = "project-id.appspot.com"
+auth_domain = "project-id.firebaseapp.com"
+messaging_sender_id = "123456789"
+app_id = "1:123:web:abc"
+database_url = ""
+
+[firebase_sa]
+type = "service_account"
+project_id = "project-id"
+private_key_id = "abc123"
+private_key = "-----BEGIN PRIVATE KEY-----\\nMIIE...\\n-----END PRIVATE KEY-----\\n"
+client_email = "firebase-adminsdk-xxx@project-id.iam.gserviceaccount.com"
+client_id = "123456789"
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/..."
+universe_domain = "googleapis.com"
     """, language="toml")
-             
+
+    st.divider()
+    st.subheader("Joriy holat")
+    checks = {
+        "BOT_TOKEN":     bool(st.secrets.get("BOT_TOKEN")),
+        "ADMIN_IDS":     bool(st.secrets.get("ADMIN_IDS")),
+        "[firebase]":    "firebase" in st.secrets,
+        "[firebase_sa]": "firebase_sa" in st.secrets,
+    }
+    for k, v in checks.items():
+        st.write(f"{'✅' if v else '❌'} `{k}`")

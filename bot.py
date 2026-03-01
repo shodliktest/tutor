@@ -1,143 +1,135 @@
 """
-🎓 QUIZ BOT (AIOGRAM 3 - TO'LIQ VERSIYA)
-✅ Conflict-free polling (Streamlit uchun Singleton Threading)
-✅ 100% Jim rejim (Terminal getUpdates xabarlaridan tozalandi)
-✅ Barcha modullar (Routers) to'liq ulangan
-✅ Global Error Handler (Tizim qulab tushmasligi uchun himoya)
+🎓 QUIZ BOT — Aiogram 3.x
+✅ Deploy boshlanganda AVVAL webhook/eski polling o'chiriladi
+✅ Singleton — ikki instance HECH QACHON ochilmaydi
+✅ Streamlit bilan thread-safe
 """
-import logging
 import asyncio
+import logging
 import sys
 import threading
-import traceback
-from handlers.bot_admin import router as bot_admin_router
 
-# ══════════════════════════════════════════════════════════
-# 1. LOGGING (TERMINALNI TOZALASH VA XATOLARNI YOZISH)
-# ══════════════════════════════════════════════════════════
 logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(message)s",
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     level=logging.INFO,
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-# Aiogram va HTTP so'rovlarining keraksiz loglarini (INFO) yashirish
-logging.getLogger("aiogram").setLevel(logging.WARNING)
-logging.getLogger("aiohttp").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
-# ══════════════════════════════════════════════════════════
-# 2. KUTUBXONALAR VA IMPORTLAR
-# ══════════════════════════════════════════════════════════
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import ErrorEvent
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN
-from firebase.config import initialize_firebase
+from firebase.config import init_firebase
 
-# 📦 Barcha Aiogram Routerlarni import qilish
-from handlers.start import router as start_router
-from handlers.profile import router as profile_router
-from handlers.create_test import router as create_test_router
-from handlers.tests import router as tests_router
-from handlers.admin import router as admin_router
-from handlers.leaderboard import router as leaderboard_router
+# ── Singleton ─────────────────────────────────────────────
+_lock    = threading.Lock()
+_started = False
+_thread: threading.Thread | None = None
 
 
-# ══════════════════════════════════════════════════════════
-# 3. BOT VA DISPATCHER SOZLAMALARI
-# ══════════════════════════════════════════════════════════
-# Botni HTML formatida xabar yuborishga moslash
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-
-# FSM (Holatlar) uchun xotira
-dp = Dispatcher(storage=MemoryStorage())
-
-# 🔗 Barcha routerlarni (modullarni) Dispatcher ga ulash
-dp.include_router(start_router)
-dp.include_router(profile_router)
-dp.include_router(create_test_router)
-dp.include_router(tests_router)
-dp.include_router(admin_router)
-dp.include_router(leaderboard_router)
-dp.include_router(bot_admin_router)
+def _build_dp() -> Dispatcher:
+    from handlers import start, tests, create_test, profile, leaderboard, admin
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(start.router)
+    dp.include_router(tests.router)
+    dp.include_router(create_test.router)
+    dp.include_router(profile.router)
+    dp.include_router(leaderboard.router)
+    dp.include_router(admin.router)
+    return dp
 
 
-# 🛡️ GLOBAL ERROR HANDLER (Qulab tushishdan himoya)
-@dp.errors()
-async def global_error_handler(event: ErrorEvent):
-    """Bot ishlayotganda kutilmagan xatolik chiqsa, bot o'chib qolmaydi."""
-    logger.error("Kutilmagan xatolik yuz berdi:")
-    logger.error(f"Xato turi: {type(event.exception).__name__}")
-    logger.error(f"Xato matni: {event.exception}")
-    # Xatoning qayerdan chiqqanini aniq ko'rsatish
-    traceback.print_exc()
-    return True # Xato ushlandi, bot ishlashda davom etadi
-
-
-# ══════════════════════════════════════════════════════════
-# 4. STREAMLIT UCHUN ORQA FONDA ISHLASH MANTIQI (THREADING)
-# ══════════════════════════════════════════════════════════
-_lock = threading.Lock()
-_bot_thread = None
-_bot_started = False
-
-def run_bot_in_background():
+async def _kill_all_sessions(bot: Bot):
     """
-    Streamlit sayti yangilanganda bot qayta-qayta ishga tushib (Conflict)
-    bermasligi uchun yagona oqim (Singleton) mexanizmi.
+    Eski webhook VA getUpdates sessiyalarini to'liq o'chiradi.
+    drop_pending_updates=True — eski xabarlar ham o'chiriladi.
     """
-    global _bot_started, _bot_thread
+    try:
+        # 1. Webhookni o'chirish
+        await bot.delete_webhook(drop_pending_updates=True)
+        log.info("🪓 Webhook o'chirildi + pending updates tozalandi")
+    except Exception as e:
+        log.warning(f"Webhook o'chirishda xato (muammo emas): {e}")
+
+    # 2. Biroz kutish — Telegram serverida eski session yopilsin
+    await asyncio.sleep(2)
+    log.info("✅ Telegram session tozalandi, polling boshlanadi")
+
+
+async def _run_polling():
+    if not BOT_TOKEN:
+        log.error("❌ BOT_TOKEN topilmadi! Secrets ni tekshiring.")
+        return
+
+    init_firebase()
+
+    bot = Bot(
+        token=BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+
+    # Har safar botni ishga tushirishdan OLDIN eski sessionni o'chiramiz
+    await _kill_all_sessions(bot)
+
+    dp = _build_dp()
+
+    log.info("🚀 Polling boshlandi!")
+    try:
+        await dp.start_polling(
+            bot,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=True,
+            polling_timeout=30,
+            handle_signals=False,    # Streamlit signal bilan to'qnashuv yo'q
+        )
+    finally:
+        await bot.session.close()
+        log.info("🛑 Bot to'xtatildi")
+
+
+def run_bot() -> threading.Thread | None:
+    """
+    Botni bitta background thread da ishga tushiradi.
+    Ikkinchi marta chaqirilsa — mavjud threadni qaytaradi.
+    """
+    global _started, _thread
+
     with _lock:
-        if _bot_started:
-            return _bot_thread
-        _bot_started = True
+        # Thread tirik bo'lsa — yangi ochmayiz
+        if _thread and _thread.is_alive():
+            log.info("⚠️  Bot allaqachon ishlayapti — yangi instance ochilmadi")
+            return _thread
 
-    # Firebase'ni ishga tushirish
-    initialize_firebase()
+        # Birinchi marta yoki thread o'lgan bo'lsa — yangisini ochamiz
+        _started = True
 
-    async def _run():
-        try:
-            # Eski qolib ketgan webhook yoki update'larni tozalash
-            await bot.delete_webhook(drop_pending_updates=True)
-            logger.info("🚀 Aiogram Bot ishga tushdi (Streamlit Thread orqali)!")
-            # Botni poling rejimida ishga tushirish (handle_signals=False juda muhim!)
-            await dp.start_polling(bot, handle_signals=False)
-        except Exception as e:
-            logger.error(f"Polling xatosi: {e}")
-
-    def _thread_target():
-        # Yangi Asyncio Event Loop yaratish va yurgizish
+    def _target():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(_run())
+            loop.run_until_complete(_run_polling())
+        except Exception as e:
+            log.error(f"Bot thread xato: {e}")
         finally:
             loop.close()
+            log.info("🧵 BotThread yopildi")
 
-    # Orqa fonda ishlaydigan Daemon Thread yaratish
-    _bot_thread = threading.Thread(target=_thread_target, daemon=True, name="AiogramBotThread")
-    _bot_thread.start()
-    return _bot_thread
+    _thread = threading.Thread(
+        target=_target,
+        daemon=True,
+        name="BotThread"
+    )
+    _thread.start()
+    log.info(f"🧵 BotThread ishga tushdi (id={_thread.ident})")
+    return _thread
 
 
-# ══════════════════════════════════════════════════════════
-# 5. LOKAL TEST QILISH UCHUN (python bot.py)
-# ══════════════════════════════════════════════════════════
+# ── Lokal ishlatish: python bot.py ────────────────────────
 if __name__ == "__main__":
-    # Lokal ishga tushirganda Firebase ulanishini ta'minlash
-    initialize_firebase()
-    
-    async def main():
-        await bot.delete_webhook(drop_pending_updates=True)
-        logger.info("🚀 Aiogram Bot ishga tushdi (Lokal rejim)!")
-        await dp.start_polling(bot)
-        
     try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("🛑 Bot to'xtatildi.")
+        asyncio.run(_run_polling())
+    except KeyboardInterrupt:
+        log.info("🛑 To'xtatildi")
