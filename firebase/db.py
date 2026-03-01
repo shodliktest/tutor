@@ -1,7 +1,5 @@
 """
 🗄️ FIREBASE DATABASE — barcha CRUD operatsiyalar
-Yangilik: save_result endi question_text, user_answer_idx ham saqlaydi
-          Bu WebApp review sahifasi uchun kerak
 """
 from firebase.config import get_db
 from datetime import datetime, timezone
@@ -69,7 +67,7 @@ def create_test(creator_id: int, data: dict) -> str:
         "difficulty": data.get("difficulty", "medium"),
         "visibility": data.get("visibility", "public"),
         "time_limit": data.get("time_limit", 0),
-        "poll_time":  data.get("poll_time", 30),
+        "poll_time":  data.get("poll_time", 30),   # Poll savol vaqti (soniya)
         "passing_score": data.get("passing_score", 60),
         "max_attempts": data.get("max_attempts", 0),
         "questions": data.get("questions", []),
@@ -123,50 +121,22 @@ def delete_test(tid: str):
 # ── RESULTS ──────────────────────────────────────────────
 
 def save_result(user_id: int, test_id: str, res: dict) -> str:
-    """
-    Natijani Firestore ga saqlash.
-    detailed_results ichida question_text va user_answer_idx ham saqlanadi
-    — bu WebApp review sahifasida savollarni ko'rsatish uchun kerak.
-    """
     db      = get_db()
     rid     = str(uuid.uuid4())
     passing = res.get("passing_score", 60)
     passed  = res.get("percentage", 0) >= passing
-
-    # detailed_results ni boyitish (WebApp uchun)
-    detailed = res.get("detailed_results", [])
-    test = get_test(test_id)
-    questions = test.get("questions", []) if test else []
-
-    enriched_details = []
-    for d in detailed:
-        idx = d.get("question_index", 0)
-        q   = questions[idx] if idx < len(questions) else {}
-        enriched_details.append({
-            **d,
-            "question_text":   q.get("question", q.get("text", "")),
-            "user_answer_idx": d.get("user_answer"),
-            "correct_answer":  q.get("correct", d.get("correct_answer", "")),
-            "explanation":     q.get("explanation", d.get("explanation", "")),
-        })
-
     doc = {
-        "result_id":       rid,
-        "user_id":         user_id,
-        "test_id":         test_id,
-        "test_title":      test.get("title", "") if test else "",
-        "score":           res.get("score", 0),
-        "percentage":      res.get("percentage", 0),
-        "correct_count":   res.get("correct_count", 0),
-        "wrong_count":     res.get("wrong_count", 0),
-        "skipped_count":   res.get("skipped_count", 0),
+        "result_id": rid, "user_id": user_id, "test_id": test_id,
+        "score": res.get("score", 0), "percentage": res.get("percentage", 0),
+        "correct_count": res.get("correct_count", 0),
+        "wrong_count": res.get("wrong_count", 0),
+        "skipped_count": res.get("skipped_count", 0),
         "total_questions": res.get("total_questions", 0),
-        "time_spent":      res.get("time_spent", 0),
-        "passed":          passed,
-        "passing_score":   passing,
-        "detailed_results": enriched_details,
-        "mode":            res.get("mode", "inline"),
-        "completed_at":    datetime.now(UTC),
+        "time_spent": res.get("time_spent", 0),
+        "passed": passed, "passing_score": passing,
+        "detailed_results": res.get("detailed_results", []),
+        "mode": res.get("mode", "inline"),
+        "completed_at": datetime.now(UTC),
     }
     db.collection("results").document(rid).set(doc)
     _update_test_stats(test_id, doc["percentage"])
