@@ -1,5 +1,7 @@
 """
-🚀 START HANDLER — Xavfsizlik va Adminga murojaat
+🚀 START HANDLER
+- /start?TEST_ID → test ma'lumoti + 3 usul (WebApp, Inline, Poll)
+- Bot link orqali kelganda WebApp tugmasi ham ko'rinadi
 """
 import logging
 from aiogram import Router, F
@@ -22,11 +24,10 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
-    uid   = message.from_user.id
-    name  = message.from_user.full_name
+    uid = message.from_user.id
+    name = message.from_user.full_name
     uname = message.from_user.username
 
-    # Bloklangan foydalanuvchini tekshirish
     user = get_user(uid)
     if user and user.get("is_blocked"):
         return await message.answer("🚫 Siz bloklangansiz. Admin bilan bog'laning.")
@@ -49,7 +50,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
     args = message.text.split()
     if len(args) > 1:
-        tid  = args[1]
+        tid = args[1]
         test = get_test(tid)
         if test:
             qs = test.get("questions", [])
@@ -63,10 +64,11 @@ async def cmd_start(message: Message, state: FSMContext):
                 f"📁 Fan: {test.get('category', '')}\n"
                 f"📋 Savollar: <b>{len(qs)} ta</b>\n"
                 f"📊 Qiyinlik: <b>{diff}</b>\n"
-                f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>"
+                f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n\n"
+                f"<i>Qaysi rejimda ishlashni tanlang 👇</i>"
             )
             await message.answer(welcome, reply_markup=main_reply_keyboard(uid))
-            await message.answer(text, reply_markup=test_info_keyboard(tid))
+            await message.answer(text, reply_markup=test_info_keyboard(tid, test))
             return
 
     await message.answer(
@@ -104,13 +106,13 @@ async def help_cb(callback: CallbackQuery):
 async def _send_help(msg, edit: bool = False):
     text = (
         "❓ <b>BOTDAN FOYDALANISH</b>\n\n"
-        "1️⃣ <b>▶️ Inline test</b> — har savoldan keyin 5 soniya to'g'ri/noto'g'ri\n\n"
-        "2️⃣ <b>📊 Poll test</b> — Telegram native quiz poll (@QuizBot uslubi)\n\n"
-        "3️⃣ <b>Test yaratish</b> — TXT/PDF fayl yoki @QuizBot forward\n"
-        "   Yaratilgan test ikki rejimda ham ishlaydi!\n\n"
-        "4️⃣ <b>Test kodi</b> — kodni to'g'ridan-to'g'ri yuboring\n\n"
-        "5️⃣ <b>Natijalarim</b> — 8 tadan ko'rsatiladi, almashtirish mumkin\n\n"
-        "6️⃣ <b>Mening testlarim</b> — 5 tadan, TXT yuklab olish, ulashish\n\n"
+        "1️⃣ <b>🎮 Web App</b> — chiroyli interaktiv interfeys, barcha savol turlari\n\n"
+        "2️⃣ <b>▶️ Inline test</b> — har savoldan keyin 5 soniya to'g'ri/noto'g'ri\n\n"
+        "3️⃣ <b>📊 Poll test</b> — Telegram native quiz poll\n\n"
+        "4️⃣ <b>Test yaratish</b> — TXT/PDF fayl, @QuizBot forward yoki Web App muharriri\n"
+        "   Yaratilgach savollar Web App da ko'rinadi — tahrirlash mumkin!\n\n"
+        "5️⃣ <b>🔍 Tahlilim</b> — oxirgi natijani batafsil ko'rish (Web App)\n\n"
+        "6️⃣ <b>📊 Natijalarim</b> — barcha natijalari tarixi (Web App)\n\n"
         "💬 <i>Muammo bo'lsa adminga murojaat qiling:</i>"
     )
     builder = InlineKeyboardBuilder()
@@ -124,8 +126,6 @@ async def _send_help(msg, edit: bool = False):
         pass
     await msg.answer(text, reply_markup=kb)
 
-
-# ── ADMINGA MUROJAAT ──────────────────────────────────────
 
 @router.callback_query(F.data == "contact_admin")
 async def contact_admin_start(callback: CallbackQuery, state: FSMContext):
@@ -157,18 +157,16 @@ async def cancel_contact(callback: CallbackQuery, state: FSMContext):
     except Exception:
         pass
     await callback.bot.send_message(
-        callback.from_user.id,
-        "✅ Bekor qilindi.",
+        callback.from_user.id, "✅ Bekor qilindi.",
         reply_markup=main_reply_keyboard(callback.from_user.id)
     )
 
 
 @router.message(ContactAdmin.waiting_message)
 async def contact_admin_send(message: Message, state: FSMContext):
-    uid   = message.from_user.id
-    name  = message.from_user.full_name
+    uid = message.from_user.id
+    name = message.from_user.full_name
     uname = f"@{message.from_user.username}" if message.from_user.username else "Yo'q"
-
     sent = 0
     for admin_id in ADMIN_IDS:
         try:
@@ -183,23 +181,17 @@ async def contact_admin_send(message: Message, state: FSMContext):
             sent += 1
         except Exception as e:
             log.error(f"Admin {admin_id} ga xato: {e}")
-
     await state.clear()
     if sent > 0:
-        await message.answer(
-            "✅ <b>Xabaringiz adminga yuborildi!</b>\n\nJavobni kuting 🙏",
-            reply_markup=main_reply_keyboard(uid)
-        )
+        await message.answer("✅ <b>Xabaringiz adminga yuborildi!</b>\n\nJavobni kuting 🙏",
+                             reply_markup=main_reply_keyboard(uid))
     else:
-        await message.answer(
-            "⚠️ Yuborishda muammo yuz berdi. Keyinroq urinib ko'ring.",
-            reply_markup=main_reply_keyboard(uid)
-        )
+        await message.answer("⚠️ Yuborishda muammo. Keyinroq urinib ko'ring.",
+                             reply_markup=main_reply_keyboard(uid))
 
 
 @router.message(F.text.startswith("/reply "))
 async def admin_reply(message: Message):
-    """Admin javob yuborish: /reply USER_ID Xabar matni"""
     if message.from_user.id not in ADMIN_IDS:
         return
     parts = message.text.split(" ", 2)
@@ -207,10 +199,7 @@ async def admin_reply(message: Message):
         return await message.answer("Format: <code>/reply USER_ID Xabar</code>")
     try:
         target_id = int(parts[1])
-        await message.bot.send_message(
-            target_id,
-            f"📬 <b>ADMINDAN JAVOB:</b>\n\n{parts[2]}"
-        )
+        await message.bot.send_message(target_id, f"📬 <b>ADMINDAN JAVOB:</b>\n\n{parts[2]}")
         await message.answer(f"✅ {target_id} ga yuborildi.")
     except Exception as e:
         await message.answer(f"❌ Xato: {e}")
