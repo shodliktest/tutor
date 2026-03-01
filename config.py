@@ -27,10 +27,14 @@ ADMIN_IDS: list = [int(x.strip()) for x in _raw.split(",") if x.strip().isdigit(
 # ── Admin panel paroli ────────────────────────────────────
 ADMIN_PASSWORD: str = _s("ADMIN_PASSWORD", "admin123")
 
-# ── Streamlit WebApp URL ──────────────────────────────────
-# Bu URL Telegram WebApp (InlineKeyboard WebAppInfo) uchun ishlatiladi
-# Streamlit Cloud da: https://your-app.streamlit.app
-STREAMLIT_URL: str = _s("STREAMLIT_URL", "https://your-app.streamlit.app")
+# ── GitHub Pages WebApp URL ───────────────────────────────
+# Bu URL Telegram WebApp (InlineKeyboard WebAppInfo) uchun ishlatiladi.
+# GitHub Pages da: https://<username>.github.io/<repo-name>
+# Masalan: https://myname.github.io/tutor-pro
+GITHUB_PAGES_URL: str = _s("GITHUB_PAGES_URL", "https://your-username.github.io/your-repo")
+
+# Orqaga muvofiqlik uchun (eski kodni buzmaslik)
+STREAMLIT_URL: str = GITHUB_PAGES_URL
 
 # ── Firebase konfiguratsiya ───────────────────────────────
 FIREBASE_CFG = {
