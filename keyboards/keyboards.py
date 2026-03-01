@@ -1,39 +1,32 @@
 """
-⌨️ BARCHA KLAVIATURALAR — v5
-✅ Test tanlanganda: WebApp + Inline + Poll (3 usul)
-✅ Kalit tugmasi orqali create.html da savollarni ko'rish
-✅ Natijalar → history.html, Tahlil → review.html
+⌨️ BARCHA KLAVIATURALAR — Aiogram 3
+WebApp tugmalari qo'shilgan:
+  result_keyboard     → "🔍 Batafsil tahlil" WebApp oynasi
+  history_keyboard    → "📜 Natijalarim" WebApp oynasi
+  test_webapp_keyboard → To'liq Web rejimda test yechish
 """
-import json
-import base64
 from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+    ReplyKeyboardMarkup, KeyboardButton,
+    WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from config import SUBJECTS, DIFFICULTY_LEVELS, WEBAPP_BASE_URL
+from config import SUBJECTS, DIFFICULTY_LEVELS
 
 
-def _encode(data) -> str:
-    return base64.b64encode(
-        json.dumps(data, ensure_ascii=False, default=str).encode()
-    ).decode()
+def _wa(path: str = "") -> str:
+    """Streamlit WebApp URL yasash."""
+    try:
+        from config import STREAMLIT_URL
+        base = STREAMLIT_URL.rstrip("/")
+    except ImportError:
+        base = "https://your-app.streamlit.app"
+    return f"{base}{path}"
 
 
-def _webapp_url(page: str, data=None) -> str:
-    if not WEBAPP_BASE_URL:
-        return ""
-    base = f"{WEBAPP_BASE_URL}/{page}"
-    if data is not None:
-        encoded = _encode(data)
-        url = f"{base}?data={encoded}"
-        return url if len(url) <= 4096 else ""
-    return base
-
-
-# ══════════════════════════════════════════════════════════
-# ASOSIY KLAVIATURA
-# ══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# ASOSIY MENYU
+# ═══════════════════════════════════════════════════════════
 
 def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
     kb = [
@@ -50,118 +43,67 @@ def main_reply_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
                                input_field_placeholder="Bo'limni tanlang...")
 
 
-# ══════════════════════════════════════════════════════════
-# TEST TANLASH — 3 USUL (WebApp + Inline + Poll)
-# ══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# TEST BOSHQARUVI
+# ═══════════════════════════════════════════════════════════
 
-def test_info_keyboard(test_id: str, test_data: dict = None) -> InlineKeyboardMarkup:
-    """
-    Test tanlanganda ko'rsatiladigan klaviatura.
-    Agar WEBAPP_BASE_URL mavjud bo'lsa — WebApp tugmasi birinchi.
-    """
+def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
+    """Test haqida ekran — 3 rejim: Inline, Poll, Web"""
     builder = InlineKeyboardBuilder()
-
-    # 1. WEB APP
-    if WEBAPP_BASE_URL and test_data:
-        payload = _build_test_payload(test_data)
-        url = _webapp_url("test.html", payload)
-        if url:
-            builder.row(InlineKeyboardButton(
-                text="🎮 Web App orqali yechish",
-                web_app=WebAppInfo(url=url)
-            ))
-
-    # 2. INLINE + POLL
     builder.row(
         InlineKeyboardButton(text="▶️ Inline test",  callback_data=f"start_test_{test_id}"),
-        InlineKeyboardButton(text="📊 Poll test",     callback_data=f"start_poll_{test_id}"),
+        InlineKeyboardButton(text="📊 Poll test",    callback_data=f"start_poll_{test_id}"),
     )
-
-    # 3. QO'SHIMCHA
     builder.row(
-        InlineKeyboardButton(text="🏆 Reyting",       callback_data=f"lb_test_{test_id}"),
-        InlineKeyboardButton(text="🏠 Asosiy menyu",  callback_data="main_menu"),
+        InlineKeyboardButton(text="🌐 Web test",    callback_data=f"start_web_{test_id}"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏆 Reyting",     callback_data=f"lb_test_{test_id}"),
+        InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
 
-def _build_test_payload(test_data: dict) -> dict:
-    raw_qs = test_data.get("questions", [])
-    formatted_qs = []
-    for q in raw_qs:
-        qtype = q.get("type", "multiple_choice")
-        if qtype in ("multiple_choice", "multi_select"):
-            t = "multiple"
-        elif qtype == "true_false":
-            t = "true_false"
-        elif qtype in ("text_input", "fill_blank"):
-            t = "fill_blank"
-        elif qtype in ("matching", "match"):
-            t = "matching"
-        elif qtype in ("ordering", "order"):
-            t = "ordering"
-        else:
-            t = "multiple"
-
-        fq = {
-            "text": q.get("text") or q.get("question", ""),
-            "type": t,
-            "explanation": q.get("explanation", ""),
-        }
-        if t in ("multiple", "true_false"):
-            fq["options"] = q.get("options", [])
-            fq["correct"] = q.get("correct", 0)
-            if isinstance(fq["correct"], str):
-                opts = fq["options"]
-                try:
-                    fq["correct"] = next(
-                        i for i, o in enumerate(opts)
-                        if o.strip() == fq["correct"].strip()
-                    )
-                except StopIteration:
-                    fq["correct"] = 0
-        elif t == "fill_blank":
-            fq["correctAnswer"] = q.get("correctAnswer") or q.get("correct_answer", "")
-        elif t == "matching":
-            fq["pairs"] = q.get("pairs", [])
-        elif t == "ordering":
-            fq["words"] = q.get("words") or q.get("items", [])
-        formatted_qs.append(fq)
-
-    return {
-        "test_id": test_data.get("test_id", ""),
-        "title": test_data.get("title", "Test"),
-        "category": test_data.get("category", ""),
-        "difficulty": test_data.get("difficulty", ""),
-        "timeLimit": test_data.get("time_limit", 0),
-        "passScore": test_data.get("passing_score", 60),
-        "showResult": test_data.get("show_result", True),
-        "shuffleQuestions": test_data.get("shuffle_questions", False),
-        "questions": formatted_qs,
-    }
+def test_webapp_keyboard(test_id: str, user_id: int) -> InlineKeyboardMarkup:
+    """WebApp orqali test yechish tugmasi."""
+    url = _wa(f"/?mode=test&test_id={test_id}&user_id={user_id}")
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🌐 Web oynada yechish",
+        web_app=WebAppInfo(url=url)
+    ))
+    builder.row(
+        InlineKeyboardButton(text="▶️ Bot ichida", callback_data=f"start_test_{test_id}"),
+        InlineKeyboardButton(text="❌ Bekor",      callback_data="main_menu"),
+    )
+    return builder.as_markup()
 
 
-# ══════════════════════════════════════════════════════════
-# NATIJA KLAVIATURASI
-# ══════════════════════════════════════════════════════════
-
-def result_keyboard(test_id: str, result_id: str,
-                    result_data: dict = None) -> InlineKeyboardMarkup:
+def result_keyboard(test_id: str, result_id: str, user_id: int = 0) -> InlineKeyboardMarkup:
+    """
+    Test yakunlanganda natija keyboard.
+    user_id > 0 bo'lsa — WebApp tahlil va tarix tugmalari ko'rsatiladi.
+    """
     builder = InlineKeyboardBuilder()
 
-    # Web App tahlil
-    if result_data and WEBAPP_BASE_URL:
-        url = _webapp_url("review.html", result_data)
-        if url:
-            builder.row(InlineKeyboardButton(
-                text="🔍 Batafsil tahlil (Web App)",
-                web_app=WebAppInfo(url=url)
-            ))
+    if user_id:
+        review_url  = _wa(f"/?mode=review&result_id={result_id}&user_id={user_id}")
+        history_url = _wa(f"/?mode=history&user_id={user_id}")
+        builder.row(InlineKeyboardButton(
+            text="🔍 Batafsil tahlil (Web)",
+            web_app=WebAppInfo(url=review_url)
+        ))
+        builder.row(InlineKeyboardButton(
+            text="📜 Natijalar tarixi",
+            web_app=WebAppInfo(url=history_url)
+        ))
+    else:
+        # Fallback — bot ichidagi tahlil
+        builder.row(InlineKeyboardButton(
+            text="🔍 Batafsil tahlil",
+            callback_data=f"analysis_{result_id}"
+        ))
 
-    builder.row(InlineKeyboardButton(
-        text="📊 Oddiy tahlil",
-        callback_data=f"analysis_{result_id}"
-    ))
     builder.row(
         InlineKeyboardButton(text="🔄 Qaytadan",  callback_data=f"start_test_{test_id}"),
         InlineKeyboardButton(text="📊 Poll rejim", callback_data=f"start_poll_{test_id}"),
@@ -173,93 +115,21 @@ def result_keyboard(test_id: str, result_id: str,
     return builder.as_markup()
 
 
-# ══════════════════════════════════════════════════════════
-# TEST YARATISH KLAVIATURALARI
-# ══════════════════════════════════════════════════════════
-
-def webapp_create_keyboard(existing_questions: list = None) -> InlineKeyboardMarkup:
+def history_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Natijalar tarixi WebApp oynasi."""
+    url = _wa(f"/?mode=history&user_id={user_id}")
     builder = InlineKeyboardBuilder()
-    if WEBAPP_BASE_URL:
-        if existing_questions:
-            payload = {"mode": "edit", "questions": existing_questions}
-            url = _webapp_url("create.html", payload)
-            if url:
-                builder.row(InlineKeyboardButton(
-                    text="🎨 Web App da ko'rish va tahrirlash",
-                    web_app=WebAppInfo(url=url)
-                ))
-            else:
-                url0 = _webapp_url("create.html")
-                if url0:
-                    builder.row(InlineKeyboardButton(
-                        text="✨ Web App muharriri (bo'sh)",
-                        web_app=WebAppInfo(url=url0)
-                    ))
-        else:
-            url = _webapp_url("create.html")
-            if url:
-                builder.row(InlineKeyboardButton(
-                    text="✨ Web App orqali yaratish",
-                    web_app=WebAppInfo(url=url)
-                ))
-
-    builder.row(
-        InlineKeyboardButton(text="📁 Fayl (TXT/PDF)",  callback_data="method_file"),
-        InlineKeyboardButton(text="📊 QuizBot forward", callback_data="method_poll"),
-    )
-    builder.row(InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_creation"))
-    return builder.as_markup()
-
-
-def after_parse_keyboard(questions: list) -> InlineKeyboardMarkup:
-    """
-    Fayl/poll tayyor bo'lgach ko'rsatiladigan klaviatura.
-    Kalit tugmasi → create.html da savollarni ko'rish va tahrirlash.
-    """
-    builder = InlineKeyboardBuilder()
-
-    if WEBAPP_BASE_URL:
-        payload = {"mode": "edit", "questions": questions}
-        url = _webapp_url("create.html", payload)
-        if url:
-            builder.row(InlineKeyboardButton(
-                text="🔑 Kalitni ko'rish va tahrirlash (Web App)",
-                web_app=WebAppInfo(url=url)
-            ))
-
     builder.row(InlineKeyboardButton(
-        text=f"✅ Saqlash ({len(questions)} ta savol)",
-        callback_data="proceed_to_subject"
+        text="📜 Natijalarim (Web oyna)",
+        web_app=WebAppInfo(url=url)
     ))
-    builder.row(
-        InlineKeyboardButton(text="📄 TXT yuklab olish", callback_data="download_draft_txt"),
-        InlineKeyboardButton(text="❌ Bekor",             callback_data="cancel_creation"),
-    )
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     return builder.as_markup()
 
 
-def create_subject_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for s in SUBJECTS:
-        builder.add(InlineKeyboardButton(text=s, callback_data=f"set_subj_{s}"))
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="✏️ Boshqa", callback_data="set_subj_other"))
-    builder.row(InlineKeyboardButton(text="❌ Bekor",  callback_data="cancel_creation"))
-    return builder.as_markup()
-
-
-def difficulty_keyboard(prefix: str = "diff_") -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for k, v in DIFFICULTY_LEVELS.items():
-        builder.add(InlineKeyboardButton(text=v, callback_data=f"{prefix}{k}"))
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_creation"))
-    return builder.as_markup()
-
-
-# ══════════════════════════════════════════════════════════
-# TEST YECHISH KLAVIATURALARI
-# ══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# JAVOB TUGMALARI (inline test)
+# ═══════════════════════════════════════════════════════════
 
 def answer_keyboard(letters: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -272,14 +142,47 @@ def answer_keyboard(letters: list) -> InlineKeyboardMarkup:
 
 def feedback_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="⏳ Keyingi savolga o'tilmoqda...", callback_data="wait_btn"))
+    builder.row(InlineKeyboardButton(
+        text="⏳ Keyingi savolga o'tilmoqda...", callback_data="wait_btn"))
     builder.row(InlineKeyboardButton(text="❌ Testni to'xtatish", callback_data="cancel_test"))
     return builder.as_markup()
 
 
-# ══════════════════════════════════════════════════════════
-# REYTING VA ADMIN
-# ══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# TEST YARATISH
+# ═══════════════════════════════════════════════════════════
+
+def create_subject_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for s in SUBJECTS:
+        builder.add(InlineKeyboardButton(text=s, callback_data=f"set_subj_{s}"))
+    builder.adjust(2)
+    builder.row(InlineKeyboardButton(text="✏️ Boshqa", callback_data="set_subj_other"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_creation"))
+    return builder.as_markup()
+
+
+def difficulty_keyboard(prefix: str = "diff_") -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for k, v in DIFFICULTY_LEVELS.items():
+        builder.add(InlineKeyboardButton(text=v, callback_data=f"{prefix}{k}"))
+    builder.adjust(2)
+    builder.row(InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_creation"))
+    return builder.as_markup()
+
+
+def test_visibility_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🌍 Ommaviy",       callback_data="vis_public"))
+    builder.row(InlineKeyboardButton(text="🔗 Ssilka orqali", callback_data="vis_link"))
+    builder.row(InlineKeyboardButton(text="🔒 Shaxsiy",        callback_data="vis_private"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor",           callback_data="cancel_creation"))
+    return builder.as_markup()
+
+
+# ═══════════════════════════════════════════════════════════
+# REYTING
+# ═══════════════════════════════════════════════════════════
 
 def leaderboard_keyboard(current: str = "global") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -294,35 +197,23 @@ def leaderboard_keyboard(current: str = "global") -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+# ═══════════════════════════════════════════════════════════
+# ADMIN
+# ═══════════════════════════════════════════════════════════
+
 def admin_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"),
-        InlineKeyboardButton(text="📋 Testlar",           callback_data="admin_tests"),
+        InlineKeyboardButton(text="📋 Testlar",          callback_data="admin_tests"),
     )
     builder.row(
         InlineKeyboardButton(text="📊 Statistika",    callback_data="admin_stats"),
         InlineKeyboardButton(text="📢 Broadcast",     callback_data="admin_broadcast"),
     )
     builder.row(
-        InlineKeyboardButton(text="🚫 Bloklash",      callback_data="admin_block"),
-        InlineKeyboardButton(text="🗑 Test o'chirish", callback_data="admin_del_test"),
+        InlineKeyboardButton(text="🚫 Bloklash",       callback_data="admin_block"),
+        InlineKeyboardButton(text="🗑 Test o'chirish",  callback_data="admin_del_test"),
     )
     builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
-    return builder.as_markup()
-
-
-def webapp_history_keyboard(user_id: int, results: list) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    if WEBAPP_BASE_URL and results:
-        url = _webapp_url("history.html", results)
-        if url:
-            builder.row(InlineKeyboardButton(
-                text="📜 Natijalar tarixini ko'rish",
-                web_app=WebAppInfo(url=url)
-            ))
-    builder.row(
-        InlineKeyboardButton(text="📋 Ro'yxat ko'rinishi", callback_data="results_p0"),
-        InlineKeyboardButton(text="🏠 Asosiy",              callback_data="main_menu"),
-    )
     return builder.as_markup()
