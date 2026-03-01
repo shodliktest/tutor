@@ -1,7 +1,6 @@
 """
-📚 TEST YECHISH — Inline rejim
+📚 TEST YECHISH — Inline rejim + WebApp yo'naltiruvchi
 Xavfsizlik: Bloklangan foydalanuvchi tekshiriladi
-Modal tahlil tugmasi natijada mavjud
 """
 import time, asyncio, logging, re
 from aiogram import Router, F
@@ -15,7 +14,10 @@ from aiogram.exceptions import TelegramBadRequest
 from firebase.db import get_test, get_public_tests, save_result, get_result_by_id, get_user
 from utils.states import TestSolving
 from utils.scoring import calculate_score, format_result
-from keyboards.keyboards import main_reply_keyboard, result_keyboard, answer_keyboard, feedback_keyboard
+from keyboards.keyboards import (
+    main_reply_keyboard, result_keyboard, answer_keyboard,
+    feedback_keyboard, test_webapp_keyboard, history_keyboard
+)
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -68,9 +70,6 @@ async def tests_menu(message: Message, state: FSMContext):
     if await _check_blocked(message.from_user.id):
         return await message.answer("🚫 Siz bloklangansiz.")
     await state.clear()
-    # Kalit xabarni o'chirish
-    from handlers.create_test import clear_key_msg
-    await clear_key_msg(message.bot, message.from_user.id, message.chat.id)
     await send_categories_menu(message)
 
 
@@ -101,7 +100,7 @@ async def direct_code_handler(message: Message):
         f"📋 Savollar: <b>{len(qs)} ta</b>\n"
         f"📊 Qiyinlik: <b>{diff}</b>\n"
         f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>",
-        reply_markup=test_info_keyboard(tid, test)  # test_data berildi
+        reply_markup=test_info_keyboard(tid)
     )
 
 
@@ -145,12 +144,11 @@ async def view_test(callback: CallbackQuery):
     qs = test.get("questions", [])
     diff_map = {"easy": "🟢 Oson", "medium": "🟡 O'rtacha",
                 "hard": "🔴 Qiyin", "expert": "⚡ Ekspert"}
-    diff = diff_map.get(test.get("difficulty", ""), "")
+    diff   = diff_map.get(test.get("difficulty", ""), "")
     vis_map = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}
-    vis = vis_map.get(test.get("visibility", ""), "")
-
-    from config import WEBAPP_BASE_URL
-    wa_line = "🎮 <b>Web App</b> — chiroyli interfeys, Firebase siz\n" if WEBAPP_BASE_URL else ""
+    vis    = vis_map.get(test.get("visibility", ""), "")
+    pt     = test.get("poll_time", 30)
+    pt_txt = f"{pt} son/savol" if pt > 0 else "Vaqtsiz"
 
     text = (
         f"<b>📋 TEST MA'LUMOTLARI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -161,21 +159,48 @@ async def view_test(callback: CallbackQuery):
         f"⏱ Vaqt limiti: <b>{test.get('time_limit', 0) or 'Cheksiz'} daqiqa</b>\n"
         f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n"
         f"🔄 Ishlangan: <b>{test.get('solve_count', 0)} marta</b>\n"
-        f"🔒 Ko'rinish: {vis}\n\n"
+        f"🔒 Ko'rinish: {vis}\n"
+        f"⏱ Poll vaqti: {pt_txt}\n\n"
         f"<i>Qaysi rejimda ishlashni tanlang:</i>\n"
-        f"{wa_line}"
-        f"▶️ <b>Inline</b> — savol-javob xabar orqali\n"
-        f"📊 <b>Poll</b> — native Telegram quiz poll"
+        f"▶️ <b>Inline</b> — har savoldan keyin to'g'ri/noto'g'ri ko'rsatadi\n"
+        f"📊 <b>Poll</b> — native quiz poll (@QuizBot uslubida)\n"
+        f"🌐 <b>Web</b> — brauzer oynasida"
     )
     from keyboards.keyboards import test_info_keyboard
     try:
-        await callback.message.edit_text(text, reply_markup=test_info_keyboard(tid, test))
+        await callback.message.edit_text(text, reply_markup=test_info_keyboard(tid))
     except TelegramBadRequest:
-        await callback.message.answer(text, reply_markup=test_info_keyboard(tid, test))
+        await callback.message.answer(text, reply_markup=test_info_keyboard(tid))
 
 
 # ═══════════════════════════════════════════════════════════
-# 2. INLINE TEST BOSHLASH
+# 2. WEB TEST BOSHLASH
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data.startswith("start_web_"))
+async def start_web_test(callback: CallbackQuery):
+    """WebApp orqali test yechishga yo'naltirish."""
+    await callback.answer()
+    tid  = callback.data[10:]
+    test = get_test(tid)
+    if not test:
+        return await callback.message.answer("❌ Test topilmadi.")
+
+    uid  = callback.from_user.id
+    text = (
+        f"<b>🌐 WEB TEST</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{test.get('title')}</b>\n"
+        f"📋 {len(test.get('questions', []))} ta savol\n\n"
+        f"Quyidagi tugmani bosing — test brauzer oynasida ochiladi:"
+    )
+    try:
+        await callback.message.edit_text(text, reply_markup=test_webapp_keyboard(tid, uid))
+    except TelegramBadRequest:
+        await callback.message.answer(text, reply_markup=test_webapp_keyboard(tid, uid))
+
+
+# ═══════════════════════════════════════════════════════════
+# 3. INLINE TEST BOSHLASH
 # ═══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("start_test_"))
@@ -230,7 +255,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
         body  += f"▫️ <b>{letter})</b> <i>{ot}</i>\n"
         letters.append(letter)
 
-    kb = answer_keyboard(letters)
+    kb   = answer_keyboard(letters)
     full = header + body
     if edit and isinstance(event, CallbackQuery):
         try:
@@ -243,7 +268,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
 
 
 # ═══════════════════════════════════════════════════════════
-# 3. JAVOB QAYTA ISHLASH — 5 soniya feedback
+# 4. JAVOB QAYTA ISHLASH — 5 soniya feedback
 # ═══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("ans_"), TestSolving.answering)
@@ -330,7 +355,7 @@ async def cancel_test(callback: CallbackQuery, state: FSMContext):
 
 
 # ═══════════════════════════════════════════════════════════
-# 4. TEST YAKUNLASH
+# 5. TEST YAKUNLASH
 # ═══════════════════════════════════════════════════════════
 
 async def _finish_test(event, state: FSMContext, data: dict):
@@ -358,7 +383,23 @@ async def _finish_test(event, state: FSMContext, data: dict):
     except Exception:
         pass
 
+    # user_id uzatamiz — WebApp tugmalari ko'rinadi
     await event.bot.send_message(
         chat_id, text,
-        reply_markup=result_keyboard(test.get("test_id"), rid)
+        reply_markup=result_keyboard(test.get("test_id"), rid, uid)
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# 6. NATIJALARIM (WebApp tarixi tugmasi)
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "my_results_webapp")
+async def my_results_webapp(callback: CallbackQuery):
+    """Foydalanuvchi 📊 Natijalarim → WebApp tarixi."""
+    await callback.answer()
+    uid = callback.from_user.id
+    await callback.message.answer(
+        "📜 <b>NATIJALARIM (Web oyna)</b>\n\nQuyidagi tugmani bosing:",
+        reply_markup=history_keyboard(uid)
     )
