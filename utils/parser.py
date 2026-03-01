@@ -78,7 +78,7 @@ def _parse_block(block: str) -> Dict | None:
         return None
 
     # Savol matni (1. yoki 1) ni olib tashlaymiz)
-    q_text = re.sub(r"^\d+[\.\)]\s*", "", lines[0])
+    q_text = re.sub(r"^\d+[\.\)]\s*", "", lines[0]).strip()
 
     q = {
         "type":             "multiple_choice",
