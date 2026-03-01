@@ -15,12 +15,12 @@ from config import SUBJECTS, DIFFICULTY_LEVELS
 
 
 def _wa(path: str = "") -> str:
-    """Streamlit WebApp URL yasash."""
+    """GitHub Pages WebApp URL yasash."""
     try:
-        from config import STREAMLIT_URL
-        base = STREAMLIT_URL.rstrip("/")
+        from config import GITHUB_PAGES_URL
+        base = GITHUB_PAGES_URL.rstrip("/")
     except ImportError:
-        base = "https://your-app.streamlit.app"
+        base = "https://your-username.github.io/your-repo"
     return f"{base}{path}"
 
 
@@ -65,8 +65,8 @@ def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
 
 
 def test_webapp_keyboard(test_id: str, user_id: int) -> InlineKeyboardMarkup:
-    """WebApp orqali test yechish tugmasi."""
-    url = _wa(f"/?mode=test&test_id={test_id}&user_id={user_id}")
+    """WebApp orqali test yechish tugmasi — GitHub Pages test.html."""
+    url = _wa(f"/test.html?solve_test={test_id}&user_id={user_id}")
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🌐 Web oynada yechish",
@@ -82,13 +82,13 @@ def test_webapp_keyboard(test_id: str, user_id: int) -> InlineKeyboardMarkup:
 def result_keyboard(test_id: str, result_id: str, user_id: int = 0) -> InlineKeyboardMarkup:
     """
     Test yakunlanganda natija keyboard.
-    user_id > 0 bo'lsa — WebApp tahlil va tarix tugmalari ko'rsatiladi.
+    user_id > 0 bo'lsa — GitHub Pages review va history tugmalari ko'rsatiladi.
     """
     builder = InlineKeyboardBuilder()
 
     if user_id:
-        review_url  = _wa(f"/?mode=review&result_id={result_id}&user_id={user_id}")
-        history_url = _wa(f"/?mode=history&user_id={user_id}")
+        review_url  = _wa(f"/review.html?result_id={result_id}&user_id={user_id}")
+        history_url = _wa(f"/history.html?user_id={user_id}")
         builder.row(InlineKeyboardButton(
             text="🔍 Batafsil tahlil (Web)",
             web_app=WebAppInfo(url=review_url)
@@ -116,8 +116,8 @@ def result_keyboard(test_id: str, result_id: str, user_id: int = 0) -> InlineKey
 
 
 def history_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Natijalar tarixi WebApp oynasi."""
-    url = _wa(f"/?mode=history&user_id={user_id}")
+    """Natijalar tarixi GitHub Pages oynasi."""
+    url = _wa(f"/history.html?user_id={user_id}")
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="📜 Natijalarim (Web oyna)",
