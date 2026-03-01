@@ -116,6 +116,8 @@ async def _send_poll_question(bot, chat_id: int, state: FSMContext):
         expl = expl[:195] + "..."
 
     q_text = q.get("question", "Savol")
+    # Savol matnidan boshidagi raqamni olib tashlaymiz (parser qoldirgan bo'lsa)
+    q_text = re.sub(r"^\d+[\.\)]\s*", "", q_text.strip())
     header = f"[{idx+1}/{len(qs)}] "
     if len(header + q_text) > 295:
         q_text = q_text[:295 - len(header)] + "..."
