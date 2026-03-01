@@ -1,50 +1,37 @@
 """
-📌 AIOGRAM 3 FSM (HOLATLAR / STATES)
-Barcha qadamlar: Test yechish, Yaratish, Admin va Support.
-Hech narsa qisqartirilmadi!
+📌 FSM States — Aiogram 3.x
+Barcha qadamlar: Test yechish, Yaratish, Poll test, Admin
 """
 from aiogram.fsm.state import State, StatesGroup
-class AdminPanel(StatesGroup):
-    block_user = State()
-    delete_test = State()
-    broadcast = State()
-    
+
+
 class TestSolving(StatesGroup):
-    answering = State()
-    text_answer = State()
-    matching_answer = State()
-    ordering_answer = State()
-    viewing_explanation = State()
+    """Oddiy inline button orqali test yechish"""
+    answering   = State()   # Inline tugmalar bilan javob berish
+    text_answer = State()   # Yozma javob kutish (text_input/fill_blank)
+
+
+class PollTest(StatesGroup):
+    """Telegram native quiz poll orqali test yechish"""
+    active = State()        # Poll yuborilgan, javob kutilmoqda
+
 
 class CreateTest(StatesGroup):
-    choose_method = State()     
-    waiting_for_polls = State() 
-    upload_file = State()
-    set_subject = State()
-    set_test_title = State()    # 🆕 YANGI: Test mavzusini so'rash qadami
-    set_difficulty = State()
-    set_time_limit = State()
-    set_passing_score = State()
-    set_max_attempts = State()
-    set_visibility = State()
-    confirm_test = State()
-    manual_question = State()
-    manual_options = State()
-    manual_correct = State()
-    manual_explanation = State()
+    """Test yaratish qadamlari"""
+    choose_method   = State()   # Fayl yoki QuizBot tanlash
+    waiting_polls   = State()   # QuizBotdan forward kutish
+    upload_file     = State()   # Fayl kutish (TXT/PDF/DOCX)
+    set_subject     = State()   # Qo'lda fan nomi yozish
+    set_title       = State()   # Test nomi yozish
+    set_difficulty  = State()   # Qiyinlik tanlash
+    set_time_limit  = State()   # Vaqt limiti
+    set_passing     = State()   # O'tish foizi
+    set_attempts    = State()   # Urinishlar soni
+    set_visibility  = State()   # Maxfiylik
 
-class Registration(StatesGroup):
-    name = State()
-    phone = State()
-    role = State()
 
 class AdminPanel(StatesGroup):
-    action = State()
-    block_user = State()
-    delete_test = State()
-    broadcast = State()
-
-class Support(StatesGroup):
-    waiting_for_message = State()
-    waiting_for_reply = State()
-    
+    """Admin boshqaruv qadamlari"""
+    broadcast   = State()   # Xabar tarqatish
+    block_user  = State()   # Foydalanuvchi bloklash
+    delete_test = State()   # Test o'chirish

@@ -1,155 +1,164 @@
 """
-📊 SCORING VA ANALYTICS (PRO VERSIYA)
-Barcha 7 xil test turlari uchun hisoblash moduli.
-BUG FIX: "B)" va "B) play" endi 100% to'g'ri hisoblanadi (faqat harf tekshiriladi).
+📊 BALL HISOBLASH VA NATIJA FORMATLASH
+7 xil test turi uchun to'g'ri hisoblash
+BUG FIX: "A)" va "A) Toshkent" bir xil harf — to'g'ri hisoblanadi
 """
-import logging
 import re
-from typing import Dict, List, Tuple, Any
+import logging
+from typing import Any, Tuple
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-def calculate_score(questions: List[Dict], user_answers: Dict) -> Dict:
-    total_questions = len(questions)
-    total_possible_score = sum(q.get("points", 1) for q in questions)
-    earned_score = correct_count = wrong_count = skipped_count = 0
-    detailed_results = []
-    
-    for i, question in enumerate(questions):
-        q_id = str(i)
-        user_ans = user_answers.get(q_id)
-        q_points = question.get("points", 1)
-        
-        is_correct = False
-        partial_score = 0
-        
-        if user_ans is None or str(user_ans).strip() == "":
-            skipped_count += 1
+LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+
+
+def calculate_score(questions: list, answers: dict) -> dict:
+    """Test natijasini hisoblash"""
+    max_score = sum(q.get("points", 1) for q in questions)
+    earned = correct = wrong = skipped = 0
+    details = []
+
+    for i, q in enumerate(questions):
+        u_ans = answers.get(str(i))
+        pts   = float(q.get("points", 1))
+        is_c  = False
+        ep    = 0.0
+
+        if u_ans is None or str(u_ans).strip() == "":
+            skipped += 1
         else:
-            is_correct, partial_score = _check_answer(question, user_ans)
-            if is_correct:
-                correct_count += 1
-                earned_score += partial_score
+            is_c, ep = _check(q, u_ans, pts)
+            if is_c:
+                correct += 1
             else:
-                wrong_count += 1
-                earned_score += partial_score
-                
-        detailed_results.append({
-            "question_index": i, "is_correct": is_correct, "earned_points": partial_score,
-            "max_points": q_points, "user_answer": user_ans, "correct_answer": question.get("correct")
+                wrong += 1
+            earned += ep
+
+        details.append({
+            "question_index": i,
+            "is_correct":     is_c,
+            "user_answer":    u_ans,
+            "correct_answer": q.get("correct"),
+            "explanation":    q.get("explanation", ""),
+            "earned_points":  ep,
+            "max_points":     pts,
         })
 
-    percentage = (earned_score / total_possible_score) * 100 if total_possible_score > 0 else 0.0
+    pct = round(earned / max_score * 100, 2) if max_score else 0.0
     return {
-        "score": earned_score, "total_possible_score": total_possible_score,
-        "percentage": round(percentage, 2), "correct_count": correct_count,
-        "wrong_count": wrong_count, "skipped_count": skipped_count,
-        "total_questions": total_questions, "grade": _get_grade(percentage),
-        "emoji_grade": _get_emoji(percentage), "detailed_results": detailed_results
+        "score":            round(earned, 2),
+        "max_score":        max_score,
+        "percentage":       pct,
+        "correct_count":    correct,
+        "wrong_count":      wrong,
+        "skipped_count":    skipped,
+        "total_questions":  len(questions),
+        "grade":            _grade(pct),
+        "emoji":            _emoji(pct),
+        "detailed_results": details,
     }
 
-def _check_answer(question: Dict, user_ans: Any) -> Tuple[bool, float]:
-    q_type = question.get("type", "multiple_choice")
-    correct = question.get("correct")
-    points = float(question.get("points", 1))
-    
-    if correct is None: return False, 0.0
+
+def _check(q: dict, ans: Any, pts: float) -> Tuple[bool, float]:
+    """Javobni to'g'riligini tekshirish"""
+    t       = q.get("type", "multiple_choice")
+    correct = q.get("correct")
+    if correct is None:
+        return False, 0.0
 
     try:
-        # 🛡️ FIX: A, B, C, D harflarini aniq ajratib olish (B) va B) play)
-        if q_type == "multiple_choice":
-            ans_str = str(user_ans).strip()
-            corr_str = str(correct).strip()
-            
-            # Matn boshidagi harfni tutib olamiz (A, B, C yoki D)
-            ans_match = re.search(r'^([A-Za-z])', ans_str)
-            corr_match = re.search(r'^([A-Za-z])', corr_str)
-            
-            if ans_match and corr_match:
-                if ans_match.group(1).lower() == corr_match.group(1).lower():
-                    return True, points
-            
-            # Agar yuqoridagi ishlamasa, oddiy tekshiruv (zaxira)
-            if corr_str.lower().startswith(ans_str.lower()) or ans_str.lower() == corr_str.lower():
-                return True, points
+        if t == "multiple_choice":
+            # Faqat bosh harf solishtirish: "A" == "A) Toshkent"
+            a_m = re.match(r"^([A-Za-z])", str(ans).strip())
+            c_m = re.match(r"^([A-Za-z])", str(correct).strip())
+            if a_m and c_m:
+                ok = a_m.group(1).lower() == c_m.group(1).lower()
+                return ok, pts if ok else 0.0
+            ok = str(ans).strip().lower() == str(correct).strip().lower()
+            return ok, pts if ok else 0.0
 
-        elif q_type == "true_false":
-            ans_str = str(user_ans).strip().lower()
-            corr_str = str(correct).strip().lower()
-            if corr_str.startswith(ans_str) or ans_str == corr_str:
-                return True, points
+        elif t == "true_false":
+            ok = str(ans).strip().lower() == str(correct).strip().lower()
+            return ok, pts if ok else 0.0
 
-        elif q_type == "multi_select":
-            if isinstance(user_ans, list) and isinstance(correct, list):
-                # Harflarni ajratib olish va solishtirish
-                ans_clean = []
-                for a in user_ans:
-                    m = re.search(r'^([A-Za-z])', str(a).strip())
-                    if m: ans_clean.append(m.group(1).lower())
-                    
-                corr_clean = []
-                for c in correct:
-                    m = re.search(r'^([A-Za-z])', str(c).strip())
-                    if m: corr_clean.append(m.group(1).lower())
-                
-                if set(ans_clean) == set(corr_clean): return True, points
+        elif t == "multi_select":
+            if isinstance(ans, list) and isinstance(correct, list):
+                def ls(lst):
+                    s = set()
+                    for x in lst:
+                        m = re.match(r"^([A-Za-z])", str(x).strip())
+                        if m:
+                            s.add(m.group(1).lower())
+                    return s
+                ok = ls(ans) == ls(correct)
+                return ok, pts if ok else 0.0
 
-        elif q_type in ["text_input", "fill_blank"]:
-            ans_str = str(user_ans).strip().lower()
-            correct_str = str(correct).strip().lower()
-            accepted = [str(x).strip().lower() for x in question.get("accepted_answers", [])]
-            if ans_str == correct_str or ans_str in accepted:
-                return True, points
+        elif t in ("text_input", "fill_blank"):
+            u   = str(ans).strip().lower()
+            c   = str(correct).strip().lower()
+            acc = [str(x).strip().lower() for x in q.get("accepted_answers", [])]
+            ok  = u == c or u in acc
+            return ok, pts if ok else 0.0
 
-        elif q_type == "matching":
-            ans_str = re.sub(r'[^a-zA-Z0-9]', '', str(user_ans).lower())
+        elif t == "matching":
             if isinstance(correct, dict):
-                correct_str = ""
-                for k, v in correct.items():
-                    correct_str += re.sub(r'[^a-zA-Z0-9]', '', str(k).lower() + str(v).lower())
-                if ans_str == correct_str: return True, points
+                ok = str(ans).strip() == str(correct).strip()
+                return ok, pts if ok else 0.0
 
-        elif q_type == "ordering":
-            ans_nums = re.findall(r'\d+', str(user_ans))
+        elif t == "ordering":
             if isinstance(correct, list):
-                correct_nums = [str(i+1) for i in range(len(correct))]
-                if ans_nums == correct_nums: return True, points
+                ok = list(ans) == list(correct)
+                return ok, pts if ok else 0.0
 
     except Exception as e:
-        logger.error(f"Tekshirish xatosi: {e}")
-        
+        log.error(f"Scoring error: {e}")
+
     return False, 0.0
 
-def _get_grade(percentage: float) -> str:
-    if percentage >= 90: return "A+"
-    elif percentage >= 80: return "A"
-    elif percentage >= 70: return "B"
-    elif percentage >= 60: return "C"
-    elif percentage >= 50: return "D"
-    else: return "F"
 
-def _get_emoji(percentage: float) -> str:
-    if percentage >= 90: return "🌟"
-    elif percentage >= 80: return "🔥"
-    elif percentage >= 70: return "👍"
-    elif percentage >= 60: return "👌"
-    elif percentage >= 50: return "⚠️"
-    else: return "❌"
+def _grade(p: float) -> str:
+    if p >= 90: return "A+"
+    if p >= 80: return "A"
+    if p >= 70: return "B"
+    if p >= 60: return "C"
+    if p >= 50: return "D"
+    return "F"
 
-def format_result_message(result: Dict, test: Dict, user_name: str) -> str:
-    emoji, grade, percentage = result.get("emoji_grade", "📝"), result.get("grade", "F"), result.get("percentage", 0.0)
-    passed = percentage >= result.get("passing_score", 60)
-    pass_text = "✅ <b>MUVAFFAQIYATLI O'TDINGIZ!</b>" if passed else "❌ <b>O'TA OLDINGIZ</b>"
-    
-    m, s = divmod(result.get("time_spent", 0), 60)
-    
-    msg = f"""
-{emoji} <b>TEST NATIJASI:</b>\n👤 <b>O'quvchi:</b> {user_name}
-📝 <b>Test:</b> {test.get('title', 'Nomsiz test')}\n━━━━━━━━━━━━━━━
-📊 <b>O'zlashtirish:</b> {percentage}%
-🎯 <b>Baho:</b> {grade}\n{pass_text}\n━━━━━━━━━━━━━━━
-✅ <b>To'g'ri:</b> {result.get('correct_count', 0)} | ❌ <b>Xato:</b> {result.get('wrong_count', 0)}
-⏭ <b>O'tkazilgan:</b> {result.get('skipped_count', 0)} | ⏱ <b>Vaqt:</b> {m} daq {s:02d} soniya
-"""
-    return msg
-                
+
+def _emoji(p: float) -> str:
+    if p >= 90: return "🌟"
+    if p >= 80: return "🔥"
+    if p >= 70: return "👍"
+    if p >= 60: return "👌"
+    if p >= 50: return "⚠️"
+    return "❌"
+
+
+def format_result(res: dict, test: dict) -> str:
+    """Yakuniy natija xabari matni"""
+    pct    = res.get("percentage", 0)
+    passed = pct >= test.get("passing_score", 60)
+    m, s   = divmod(res.get("time_spent", 0), 60)
+    emoji  = res.get("emoji", "📝")
+    grade  = res.get("grade", "F")
+
+    if passed:
+        holat = "🎉 MUVAFFAQIYATLI O'TDINGIZ!"
+    else:
+        holat = f"❌ YIQILDINGIZ. (O'tish: {test.get('passing_score', 60)}%)"
+
+    return (
+        f"{emoji} <b>TEST NATIJASI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{test.get('title', 'Test')}</b>\n"
+        f"📁 Fan: {test.get('category', '')}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 O'zlashtirish: <b>{pct}%</b>\n"
+        f"🎯 Baho: <b>{grade}</b>\n"
+        f"✅ To'g'ri: <b>{res.get('correct_count', 0)}</b>   "
+        f"❌ Xato: <b>{res.get('wrong_count', 0)}</b>   "
+        f"⏭ O'tkazilgan: <b>{res.get('skipped_count', 0)}</b>\n"
+        f"⏱ Vaqt: <b>{m} daq {s:02d} son</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏆 {holat}"
+    )
