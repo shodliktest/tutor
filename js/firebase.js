@@ -1,11 +1,7 @@
-/**
- * firebase.js — GitHub Pages versiyasi
- * Firebase config va DB yordamchi funksiyalar
- * Auth: Telegram user_id (integer) asosida — Firebase Auth ISHLATILMAYDI
- *
- * ⚠️  SOZLASH: quyidagi firebaseConfig ni o'zingizniki bilan almashtiring.
- *     Bu ma'lumotlar Firebase Console → Project Settings → Your apps dan olinadi.
- */
+/* ================================================================
+   firebase.js — Telegram Bot (testbot-7c514) bilan ishlash uchun
+   Bot formatini HTML formatiga normalize qiladi
+   ================================================================ */
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCPdGiX2gnPCvfP7KFSixP09PbVkVZ_eEo",
@@ -16,116 +12,166 @@ const firebaseConfig = {
   appId:             "1:223522501634:web:ca9865cc95e0bc5db9a31b"
 };
 
-/* ── Firebase init ────────────────────────────────────────── */
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* ── URL parametr yordamchisi ─────────────────────────────── */
-const UP = {
-  get(key) { return new URLSearchParams(location.search).get(key); }
-};
+/* ── URL parametr ── */
+const UP = { get(k) { return new URLSearchParams(location.search).get(k); } };
 
-/**
- * getTelegramUserId()
- * Prioritet: 1) window.Telegram.WebApp.initDataUnsafe.user.id
- *            2) URL ?user_id= parametri
- *            3) null
- */
+/* ── Telegram user_id olish ── */
 function getTelegramUserId() {
   try {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      const uid = tg.initDataUnsafe?.user?.id;
-      if (uid) return Number(uid);
-    }
-  } catch (_) {}
+    const uid = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (uid) return Number(uid);
+  } catch(_) {}
   const p = UP.get('user_id');
   return p ? Number(p) : null;
 }
 
-/* ── Subject ma'lumotnomasi ───────────────────────────────── */
-const SUBJECTS = {
-  english:  { label: 'Ingliz tili',   icon: '🇬🇧' },
-  arabic:   { label: 'Arab tili',     icon: '🕌'  },
-  russian:  { label: 'Rus tili',      icon: '🇷🇺' },
-  turkish:  { label: 'Turk tili',     icon: '🇹🇷' },
-  math:     { label: 'Matematika',    icon: '🧮'  },
-  it:       { label: 'Informatika',   icon: '💻'  },
-  science:  { label: 'Fan',           icon: '🔬'  },
-  religion: { label: 'Din',           icon: '📖'  },
-  other:    { label: 'Boshqa',        icon: '📚'  },
-};
+/* ================================================================
+   normalizeQuestion — Bot Python formati → HTML formati
+   
+   Bot saqlaydi:
+     { question: "...", options: ["A) Ha", "B) Yo'q"], correct: "A) Ha",
+       type: "multiple_choice" }
+   
+   HTML kutadi:
+     { text: "...", options: ["Ha", "Yo'q"], correct: 0 (index),
+       type: "multiple" }
+   ================================================================ */
+function normalizeQuestion(q) {
+  const LETTERS = ['A','B','C','D','E','F','G','H','I','J'];
 
-function getSubject(key) {
-  return SUBJECTS[key] || SUBJECTS.other;
+  // text field
+  const text = q.question || q.text || '';
+
+  // type normalize
+  let type = (q.type || 'multiple').toLowerCase();
+  if (type === 'multiple_choice') type = 'multiple';
+  if (type === 'true_false')      type = 'truefalse';
+  if (type === 'text_input' || type === 'fill_blank') type = 'text';
+
+  // options — "A) Toshkent" → "Toshkent"
+  const rawOpts = q.options || [];
+  const options = rawOpts.map(o => {
+    const s = String(o);
+    return s.replace(/^[A-Za-z][\.\)]\s*/, '').trim();
+  });
+
+  // correct — string "A) ..." yoki "A" → index raqamiga
+  let correct = q.correct;
+  if (typeof correct === 'string') {
+    const m = correct.trim().match(/^([A-Za-z])/);
+    if (m) {
+      correct = LETTERS.indexOf(m[1].toUpperCase());
+      if (correct < 0) correct = 0;
+    } else {
+      // To'g'ridan-to'g'ri option matni bo'lsa
+      const idx = options.findIndex(o =>
+        o.toLowerCase() === correct.toLowerCase()
+      );
+      correct = idx >= 0 ? idx : 0;
+    }
+  }
+  if (typeof correct !== 'number') correct = 0;
+
+  // correctAnswer (text type uchun)
+  const correctAnswer = q.correctAnswer || q.correct_answer ||
+    (type === 'text' && typeof q.correct === 'string' ? q.correct : '');
+
+  return {
+    ...q,
+    text,
+    type,
+    options,
+    correct,
+    correctAnswer,
+    explanation: q.explanation || '',
+    points: q.points || 1,
+  };
 }
 
-/* ── Yordamchi funksiyalar ────────────────────────────────── */
+/* ── Subject ── */
+const SUBJECTS = {
+  english:  { label: 'Ingliz tili', icon: '🇬🇧' },
+  arabic:   { label: 'Arab tili',   icon: '🕌'  },
+  russian:  { label: 'Rus tili',    icon: '🇷🇺' },
+  turkish:  { label: 'Turk tili',   icon: '🇹🇷' },
+  math:     { label: 'Matematika',  icon: '🧮'  },
+  it:       { label: 'Informatika', icon: '💻'  },
+  science:  { label: 'Fan',         icon: '🔬'  },
+  religion: { label: 'Din',         icon: '📖'  },
+  other:    { label: 'Boshqa',      icon: '📚'  },
+};
+function getSubject(k) { return SUBJECTS[k] || SUBJECTS.other; }
+
+/* ── Helpers ── */
 function esc(s) {
   return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
+function fmtTime(secs) {
+  secs = secs || 0;
+  return String(Math.floor(secs/60)).padStart(2,'0') + ':' +
+         String(secs % 60).padStart(2,'0');
+}
 function goTo(page) {
-  // uid ni barcha sahifalarga uzatib yuramiz
   const uid = getTelegramUserId();
   const sep = page.includes('?') ? '&' : '?';
   location.href = uid ? `${page}${sep}user_id=${uid}` : page;
 }
 
-/* ── DB ─────────────────────────────────────────────────────
- *  Firestore da ma'lumotlar tuzilmasi:
- *    tests/{testId}          — test meta-ma'lumotlari
- *    tests/{testId}/questions — savol kolleksiyasi
- *    results/{resultId}      — natijalar (bot tomonidan yoziladi, HTML o'qiydi)
- *
- *  ⚠️ Natija yozish (saveResult) — faqat HTML test.html dan chaqiriladi.
- *     Bot ham o'zining firebase/db.py orqali yozadi (inline/poll rejimlar uchun).
- */
+/* ── DB ── */
 const DB = {
 
-  /* ── Test ma'lumotlari ── */
   async getTest(id) {
     const doc = await db.collection('tests').doc(id).get();
     if (!doc.exists) return null;
-    return { id: doc.id, ...doc.data() };
+    const d = doc.data();
+    // is_active = false bo'lsa ko'rsatmaymiz
+    if (d.is_active === false) return null;
+    return { id: doc.id, ...d };
   },
 
   async getTestByCode(code) {
-    const snap = await db.collection('tests')
-      .where('code', '==', code).limit(1).get();
-    if (snap.empty) return null;
-    const doc = snap.docs[0];
-    return { id: doc.id, ...doc.data() };
+    // Bot 'code' field ishlatmaydi — 'accessCode' ham yo'q
+    // test_id = document ID, uni to'g'ridan-to'g'ri olish kerak
+    const upper = code.toUpperCase().trim();
+    // Avval document ID sifatida sinab ko'ramiz
+    try {
+      const doc = await db.collection('tests').doc(upper).get();
+      if (doc.exists) return { id: doc.id, ...doc.data() };
+    } catch(_) {}
+    // Keyin code field bo'yicha qidiramiz
+    try {
+      const snap = await db.collection('tests')
+        .where('code', '==', upper).limit(1).get();
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    } catch(_) {}
+    return null;
   },
 
   async getQuestions(testId) {
-    // Savollar tests/{id}/questions subcollection da saqlangan
-    // Yoki tests/{id}.questions array bo'lishi mumkin
+    let qs = [];
+    // 1) subcollection
     try {
       const snap = await db.collection('tests').doc(testId)
         .collection('questions').orderBy('order').get();
       if (!snap.empty)
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    } catch (_) {}
-    // Fallback: array ichida
-    const t = await this.getTest(testId);
-    return t?.questions || [];
+        qs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(_) {}
+    // 2) questions array ichida (bot bu usulni ishlatadi)
+    if (!qs.length) {
+      const t = await this.getTest(testId);
+      qs = t?.questions || [];
+    }
+    // 3) Bot formatini HTML formatiga o'giramiz
+    return qs.map(q => normalizeQuestion(q));
   },
 
-  /* ── Natijalar ── */
-  /**
-   * saveResult — faqat Web (HTML) rejimi uchun.
-   * Bot inline/poll natijalari firebase/db.py orqali saqlanadi.
-   *
-   * @param {object} data  { userId (Telegram int), testId, testTitle, subject,
-   *                         score, correct, total, elapsed, userAnswers, passed }
-   */
   async saveResult(data) {
-    const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const rid = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     await db.collection('results').doc(rid).set({
       result_id:       rid,
       user_id:         Number(data.userId),
@@ -147,58 +193,64 @@ const DB = {
     return rid;
   },
 
-  /**
-   * getResultById — review.html ishlatadi.
-   * Firestore da natijalar result_id field va document ID ikkalasi bir xil.
-   */
   async getResultById(rid) {
     const doc = await db.collection('results').doc(rid).get();
     if (!doc.exists) return null;
     return { id: doc.id, ...doc.data() };
   },
 
-  /**
-   * getMyResults — history.html ishlatadi.
-   * Telegram user_id bo'yicha so'raydi.
-   */
-  async getMyResults(userId, _limit = 50) {
-    const snap = await db.collection('results')
-      .where('user_id', '==', Number(userId))
-      .orderBy('completed_at', 'desc')
-      .limit(100)
-      .get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  async getMyResults(userId) {
+    try {
+      const snap = await db.collection('results')
+        .where('user_id', '==', Number(userId))
+        .orderBy('completed_at', 'desc')
+        .limit(100).get();
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(_) {
+      // Index yo'q bo'lsa orderBy olmagan holda olamiz
+      const snap = await db.collection('results')
+        .where('user_id', '==', Number(userId))
+        .limit(100).get();
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return list.sort((a,b) =>
+        (b.completed_at?.seconds||0) - (a.completed_at?.seconds||0));
+    }
   },
 
-  /* ── Foydalanuvchi ── (ixtiyoriy) */
   async getUser(userId) {
     const doc = await db.collection('users').doc(String(userId)).get();
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
   }
 };
 
-/* ── AuthHelpers shim ─────────────────────────────────────
- * Eski kod `AuthHelpers.getCurrentUser()` deb chaqiradi.
- * Biz uni Telegram user_id qaytaradigan stub bilan almashtiramiz.
- * uid = "tg_" + telegramId  shaklida qaytariladi (string).
- */
+/* ── AuthHelpers shim ── */
 const AuthHelpers = {
   getCurrentUser() {
     const uid = getTelegramUserId();
     if (!uid) return Promise.resolve(null);
     return Promise.resolve({ uid: String(uid), telegramId: uid });
   },
-  requireAuth(redirectPage) {
+  requireAuth() {
     const uid = getTelegramUserId();
     if (!uid) {
-      // Telegram WebApp da login.html yo'q — xato ko'rsatamiz
       document.body.innerHTML =
-        `<div style="padding:2rem;text-align:center;font-family:sans-serif">
-          <h2>❌ Foydalanuvchi aniqlanmadi</h2>
-          <p>Iltimos, botdan kirish havolasini bosing.</p>
+        `<div style="padding:2rem;text-align:center;font-family:sans-serif;color:#1a1a2e">
+          <div style="font-size:3rem">❌</div>
+          <h2>Foydalanuvchi aniqlanmadi</h2>
+          <p>Iltimos, bot havolasidan kiring.</p>
         </div>`;
       return Promise.resolve(null);
     }
     return Promise.resolve({ uid: String(uid), telegramId: uid });
   }
 };
+
+/* ── Global eksport ── */
+window.DB          = DB;
+window.AuthHelpers = AuthHelpers;
+window.getSubject  = getSubject;
+window.getTelegramUserId = getTelegramUserId;
+window.normalizeQuestion = normalizeQuestion;
+window.esc         = esc;
+window.fmtTime     = fmtTime;
+window.goTo        = goTo;
