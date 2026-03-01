@@ -1,6 +1,10 @@
 /* ================================================================
-   firebase.js — Telegram Bot (testbot-7c514) bilan ishlash uchun
-   Bot formatini HTML formatiga normalize qiladi
+   firebase.js — Universal format
+   Bot (Python) va HTML bir xil formatda o'qiydi/yozadi:
+     options       : ["Toshkent", "Moskva"]   — toza, harfsiz
+     correct       : 0  (index)
+     correct_letter: "A"
+     text/question : savol matni (ikkalasi bir xil)
    ================================================================ */
 
 const firebaseConfig = {
@@ -18,7 +22,7 @@ const db = firebase.firestore();
 /* ── URL parametr ── */
 const UP = { get(k) { return new URLSearchParams(location.search).get(k); } };
 
-/* ── Telegram user_id olish ── */
+/* ── Telegram user_id ── */
 function getTelegramUserId() {
   try {
     const uid = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -29,66 +33,50 @@ function getTelegramUserId() {
 }
 
 /* ================================================================
-   normalizeQuestion — Bot Python formati → HTML formati
-   
-   Bot saqlaydi:
-     { question: "...", options: ["A) Ha", "B) Yo'q"], correct: "A) Ha",
-       type: "multiple_choice" }
-   
-   HTML kutadi:
-     { text: "...", options: ["Ha", "Yo'q"], correct: 0 (index),
-       type: "multiple" }
+   normalizeQuestion — eski formatda saqlangan testlar uchun fallback
+   Yangi testlar allaqachon to'g'ri formatda keladi.
    ================================================================ */
 function normalizeQuestion(q) {
   const LETTERS = ['A','B','C','D','E','F','G','H','I','J'];
 
-  // text field
-  const text = q.question || q.text || '';
+  // text = question yoki text
+  const text = (q.text || q.question || '').replace(/^\d+[\.\)]\s*/, '').trim();
 
   // type normalize
-  let type = (q.type || 'multiple').toLowerCase();
+  let type = (q.type || 'multiple_choice').toLowerCase();
   if (type === 'multiple_choice') type = 'multiple';
   if (type === 'true_false')      type = 'truefalse';
   if (type === 'text_input' || type === 'fill_blank') type = 'text';
 
-  // options — "A) Toshkent" → "Toshkent"
+  // options — agar "A) Matn" formatda bo'lsa tozalaymiz
   const rawOpts = q.options || [];
-  const options = rawOpts.map(o => {
-    const s = String(o);
-    return s.replace(/^[A-Za-z][\.\)]\s*/, '').trim();
-  });
+  const options = rawOpts.map(o =>
+    String(o).replace(/^[A-Za-z][\.\)]\s*/, '').replace(/\[TO'G'RI\]/gi,'')
+             .replace(/\*/g,'').replace(/={3}/g,'').trim()
+  );
 
-  // correct — string "A) ..." yoki "A" → index raqamiga
+  // correct — index bo'lmasa o'giramiz
   let correct = q.correct;
-  if (typeof correct === 'string') {
+  if (typeof correct === 'string' && correct.trim() !== '') {
+    // "A" yoki "A) Matn" → index
     const m = correct.trim().match(/^([A-Za-z])/);
     if (m) {
-      correct = LETTERS.indexOf(m[1].toUpperCase());
-      if (correct < 0) correct = 0;
+      const idx = LETTERS.indexOf(m[1].toUpperCase());
+      correct = idx >= 0 ? idx : 0;
     } else {
-      // To'g'ridan-to'g'ri option matni bo'lsa
-      const idx = options.findIndex(o =>
-        o.toLowerCase() === correct.toLowerCase()
-      );
+      // Option matniga mos indeksini topamiz
+      const cleaned = correct.replace(/^[A-Za-z][\.\)]\s*/,'').trim().toLowerCase();
+      const idx = options.findIndex(o => o.toLowerCase() === cleaned);
       correct = idx >= 0 ? idx : 0;
     }
   }
   if (typeof correct !== 'number') correct = 0;
 
-  // correctAnswer (text type uchun)
   const correctAnswer = q.correctAnswer || q.correct_answer ||
     (type === 'text' && typeof q.correct === 'string' ? q.correct : '');
 
-  return {
-    ...q,
-    text,
-    type,
-    options,
-    correct,
-    correctAnswer,
-    explanation: q.explanation || '',
-    points: q.points || 1,
-  };
+  return { ...q, text, type, options, correct, correctAnswer,
+           explanation: q.explanation || '', points: q.points || 1 };
 }
 
 /* ── Subject ── */
@@ -129,21 +117,19 @@ const DB = {
     const doc = await db.collection('tests').doc(id).get();
     if (!doc.exists) return null;
     const d = doc.data();
-    // is_active = false bo'lsa ko'rsatmaymiz
     if (d.is_active === false) return null;
     return { id: doc.id, ...d };
   },
 
   async getTestByCode(code) {
-    // Bot 'code' field ishlatmaydi — 'accessCode' ham yo'q
-    // test_id = document ID, uni to'g'ridan-to'g'ri olish kerak
     const upper = code.toUpperCase().trim();
-    // Avval document ID sifatida sinab ko'ramiz
+    // 1) Document ID sifatida
     try {
       const doc = await db.collection('tests').doc(upper).get();
-      if (doc.exists) return { id: doc.id, ...doc.data() };
+      if (doc.exists && doc.data().is_active !== false)
+        return { id: doc.id, ...doc.data() };
     } catch(_) {}
-    // Keyin code field bo'yicha qidiramiz
+    // 2) code field
     try {
       const snap = await db.collection('tests')
         .where('code', '==', upper).limit(1).get();
@@ -161,12 +147,12 @@ const DB = {
       if (!snap.empty)
         qs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch(_) {}
-    // 2) questions array ichida (bot bu usulni ishlatadi)
+    // 2) questions array (bot bu usulni ishlatadi)
     if (!qs.length) {
       const t = await this.getTest(testId);
       qs = t?.questions || [];
     }
-    // 3) Bot formatini HTML formatiga o'giramiz
+    // 3) Normalize (yangi formatda bo'lsa ham xavfsiz)
     return qs.map(q => normalizeQuestion(q));
   },
 
@@ -181,7 +167,7 @@ const DB = {
       score:           data.score     || 0,
       percentage:      data.score     || 0,
       correct_count:   data.correct   || 0,
-      wrong_count:     (data.total || 0) - (data.correct || 0),
+      wrong_count:     (data.total||0) - (data.correct||0),
       total_questions: data.total     || 0,
       time_spent:      data.elapsed   || 0,
       passed:          !!data.passed,
@@ -207,7 +193,7 @@ const DB = {
         .limit(100).get();
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch(_) {
-      // Index yo'q bo'lsa orderBy olmagan holda olamiz
+      // Composite index yo'q bo'lsa
       const snap = await db.collection('results')
         .where('user_id', '==', Number(userId))
         .limit(100).get();
@@ -234,10 +220,10 @@ const AuthHelpers = {
     const uid = getTelegramUserId();
     if (!uid) {
       document.body.innerHTML =
-        `<div style="padding:2rem;text-align:center;font-family:sans-serif;color:#1a1a2e">
-          <div style="font-size:3rem">❌</div>
-          <h2>Foydalanuvchi aniqlanmadi</h2>
-          <p>Iltimos, bot havolasidan kiring.</p>
+        `<div style="padding:2rem;text-align:center;font-family:'Plus Jakarta Sans',sans-serif">
+          <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+          <h2 style="color:#1a1a2e">Foydalanuvchi aniqlanmadi</h2>
+          <p style="color:#6b7280">Bot havolasidan kiring.</p>
         </div>`;
       return Promise.resolve(null);
     }
@@ -245,12 +231,12 @@ const AuthHelpers = {
   }
 };
 
-/* ── Global eksport ── */
-window.DB          = DB;
+/* ── Global ── */
+window.DB = DB;
 window.AuthHelpers = AuthHelpers;
-window.getSubject  = getSubject;
+window.getSubject = getSubject;
 window.getTelegramUserId = getTelegramUserId;
 window.normalizeQuestion = normalizeQuestion;
-window.esc         = esc;
-window.fmtTime     = fmtTime;
-window.goTo        = goTo;
+window.esc = esc;
+window.fmtTime = fmtTime;
+window.goTo = goTo;
