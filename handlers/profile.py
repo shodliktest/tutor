@@ -1,7 +1,5 @@
 """
-👤 PROFILE & MY TESTS HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Doimiy (Reply) menyudagi tugmalarni ushlab, "Mening Testlarim", 
-"Profil" va "Natijalarim" ni chiqaruvchi mukammal handler.
+👤 PROFIL, NATIJALAR VA MENING TESTLARIM
 """
 import logging
 from aiogram import Router, F
@@ -9,153 +7,163 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
-from firebase.db import get_user, get_user_results, get_test, get_db
+from firebase.db import get_user, get_user_results, get_test, get_my_tests
 from keyboards.keyboards import main_reply_keyboard
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 router = Router()
 
-# ==========================================================
-# 1. PROFIL MA'LUMOTLARI (REPLY TUGMA ORQALI)
-# ==========================================================
+
+# ═══════════════════════════════════════════════════════════
+# 1. PROFIL
+# ═══════════════════════════════════════════════════════════
+
 @router.message(F.text == "👤 Profil")
-async def profile_view_msg(message: Message):
-    user_id = message.from_user.id
-    user = get_user(user_id)
-    
-    if not user: 
-        return await message.answer("❌ Profil topilmadi. /start buyrug'ini yuboring.")
+async def profile_msg(message: Message):
+    await _show_profile(message, message.from_user.id)
 
-    name = user.get("name", "Noma'lum")
-    total_tests = user.get("total_tests", 0)
-    avg_score = round(user.get("avg_score", 0), 1)
-    role = user.get("role", "user").replace("admin", "👨‍💼 Admin").replace("user", "🎓 O'quvchi")
 
-    text = (
-        f"👤 <b>SHAXSIY PROFIL</b>\n\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"👤 Ism: <b>{name}</b>\n"
-        f"🎭 Rol: <b>{role}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📊 Jami yechilgan testlar: <b>{total_tests} ta</b>\n"
-        f"🎯 O'rtacha o'zlashtirish: <b>{avg_score}%</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-    )
-    
-    # Profil tagida kichik inline tugmalar qo'shish mumkin
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📊 Natijalarim tarixi", callback_data="profile_results"))
-    
-    await message.answer(text, reply_markup=builder.as_markup())
-
-# Eski (Inline) tugma uchun zaxira
 @router.callback_query(F.data == "profile_view")
-async def profile_view_cb(callback: CallbackQuery):
+async def profile_cb(callback: CallbackQuery):
     await callback.answer()
-    user_id = callback.from_user.id
-    user = get_user(user_id)
-    if not user: return await callback.message.edit_text("❌ Profil ma'lumotlari topilmadi.")
+    await _show_profile(callback.message, callback.from_user.id, edit=True)
 
-    name = user.get("name", "Noma'lum")
-    total_tests = user.get("total_tests", 0)
-    avg_score = round(user.get("avg_score", 0), 1)
-    
+
+async def _show_profile(msg, uid: int, edit: bool = False):
+    user = get_user(uid)
+    if not user:
+        text = "❌ Profil topilmadi. /start ni bosing."
+        if edit:
+            await msg.edit_text(text)
+        else:
+            await msg.answer(text)
+        return
+
+    role_map = {
+        "admin":   "👑 Admin",
+        "teacher": "👨‍🏫 O'qituvchi",
+        "user":    "🎓 O'quvchi",
+    }
+    role = role_map.get(user.get("role", "user"), "🎓 O'quvchi")
+
     text = (
-        f"👤 <b>SHAXSIY PROFIL</b>\n\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"👤 Ism: <b>{name}</b>\n"
-        f"📊 Jami yechilgan testlar: <b>{total_tests} ta</b>\n"
-        f"🎯 O'rtacha o'zlashtirish: <b>{avg_score}%</b>\n"
+        f"👤 <b>SHAXSIY PROFIL</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🆔 ID: <code>{uid}</code>\n"
+        f"👤 Ism: <b>{user.get('name', 'Noma\'lum')}</b>\n"
+        f"🎭 Rol: <b>{role}</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📋 Yechilgan testlar: <b>{user.get('total_tests', 0)} ta</b>\n"
+        f"📊 O'rtacha natija: <b>{round(user.get('avg_score', 0), 1)}%</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━"
     )
-    
+
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📊 Natijalarim tarixi", callback_data="profile_results"))
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    builder.row(InlineKeyboardButton(text="📊 Natijalar tarixim", callback_data="profile_results"))
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
+    kb = builder.as_markup()
+
+    if edit:
+        try:
+            await msg.edit_text(text, reply_markup=kb)
+            return
+        except Exception:
+            pass
+    await msg.answer(text, reply_markup=kb)
 
 
-# ==========================================================
-# 2. NATIJALAR TARIXI (REPLY VA INLINE TUGMA ORQALI)
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+# 2. NATIJALAR TARIXI
+# ═══════════════════════════════════════════════════════════
+
 @router.message(F.text == "📊 Natijalarim")
-async def profile_results_msg(message: Message):
-    user_id = message.from_user.id
-    results = get_user_results(user_id, limit=10)
-    
-    if not results: 
-        return await message.answer("📭 Siz hali test ishlamagansiz.")
-        
-    text = "📋 <b>OXIRGI 10 TA NATIJANGIZ:</b>\n\n"
-    builder = InlineKeyboardBuilder()
-    
-    for res in results:
-        test = get_test(res.get("test_id"))
-        title = test.get("title", "O'chirilgan test") if test else "Noma'lum"
-        status = "✅" if res.get("passed") else "❌"
-        
-        comp_at = res.get("completed_at")
-        date_str = comp_at.strftime("%d.%m") if comp_at else "--"
-        
-        text += f"{status} <b>{title}</b> — {res.get('percentage')}% ({date_str})\n"
-        builder.row(InlineKeyboardButton(text=f"🔍 {title} (Tahlil)", callback_data=f"analysis_{res.get('result_id')}"))
+async def results_msg(message: Message):
+    await _show_results(message, message.from_user.id)
 
-    await message.answer(text, reply_markup=builder.as_markup())
 
 @router.callback_query(F.data == "profile_results")
-async def profile_results_cb(callback: CallbackQuery):
+async def results_cb(callback: CallbackQuery):
     await callback.answer()
-    user_id = callback.from_user.id
-    results = get_user_results(user_id, limit=10)
-    
-    if not results: 
-        return await callback.message.edit_text("📭 Siz hali test ishlamagansiz.")
-        
-    text = "📋 <b>OXIRGI 10 TA NATIJANGIZ:</b>\n\n"
+    await _show_results(callback.message, callback.from_user.id, edit=True)
+
+
+async def _show_results(msg, uid: int, edit: bool = False):
+    results = get_user_results(uid, limit=15)
+
+    if not results:
+        text = "📭 Siz hali hech qanday test ishlamagansiz."
+        if edit:
+            try:
+                await msg.edit_text(text)
+                return
+            except Exception:
+                pass
+        await msg.answer(text)
+        return
+
+    text    = "📋 <b>OXIRGI NATIJALARINGIZ:</b>\n\n"
     builder = InlineKeyboardBuilder()
-    
+
     for res in results:
-        test = get_test(res.get("test_id"))
-        title = test.get("title", "O'chirilgan test") if test else "Noma'lum"
-        status = "✅" if res.get("passed") else "❌"
-        text += f"{status} <b>{title}</b> — {res.get('percentage')}% \n"
-        builder.row(InlineKeyboardButton(text=f"🔍 {title} (Tahlil)", callback_data=f"analysis_{res.get('result_id')}"))
+        test = get_test(res.get("test_id", ""))
+        title = test.get("title", "O'chirilgan test")[:25] if test else "Noma'lum"
+        icon  = "✅" if res.get("passed") else "❌"
+        pct   = res.get("percentage", 0)
+        mode  = "📊" if res.get("mode") == "poll" else "▶️"
+        dt    = res.get("completed_at")
+        date  = dt.strftime("%d.%m") if dt and hasattr(dt, "strftime") else "--"
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+        text += f"{icon} {mode} <b>{title}</b> — {pct}% ({date})\n"
+        builder.row(InlineKeyboardButton(
+            text=f"🔍 {title[:20]} — Tahlil",
+            callback_data=f"analysis_{res.get('result_id')}"
+        ))
+
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
+    kb = builder.as_markup()
+
+    if edit:
+        try:
+            await msg.edit_text(text, reply_markup=kb)
+            return
+        except Exception:
+            pass
+    await msg.answer(text, reply_markup=kb)
 
 
-# ==========================================================
-# 3. MENING TESTLARIM (YANGI REPLY TUGMA ORQALI)
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+# 3. MENING TESTLARIM
+# ═══════════════════════════════════════════════════════════
+
 @router.message(F.text == "🗂 Mening testlarim")
 async def my_tests_handler(message: Message):
-    """Foydalanuvchi o'zi yaratgan barcha testlarni kodlari va ssilkasi bilan ko'rsatish"""
-    user_id = message.from_user.id
-    db = get_db()
-    
-    # Bazadan shu foydalanuvchi yaratgan testlarni tortish
-    tests_ref = db.collection("tests").where("creator_id", "==", user_id).stream()
-    tests = [t.to_dict() for t in tests_ref]
-    
+    uid   = message.from_user.id
+    tests = get_my_tests(uid)
+
     if not tests:
-        await message.answer("📭 Siz hali hech qanday test yaratmagansiz.\nMenyudan '➕ Test Yaratish' ni bosing.")
+        await message.answer(
+            "📭 Siz hali test yaratmagansiz.\n"
+            "Menyudan '➕ Test Yaratish' ni bosing."
+        )
         return
-        
-    text = "🗂 <b>SIZ YARATGAN TESTLAR RO'YXATI:</b>\n\n"
-    bot_username = (await message.bot.me()).username
-    
+
+    bot_uname = (await message.bot.me()).username
+    text      = "🗂 <b>SIZ YARATGAN TESTLAR:</b>\n\n"
+
     for i, t in enumerate(tests, 1):
-        t_id = t.get("test_id")
+        tid   = t.get("test_id")
         title = t.get("title", "Nomsiz")
-        category = t.get("category", "Boshqa")
-        vis = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}.get(t.get("visibility"), "Noma'lum")
-        
-        text += f"{i}. <b>{title}</b> ({category})\n"
-        text += f"   🔑 Kod: <code>{t_id}</code>\n"
-        text += f"   📊 Ishlangan: {t.get('solve_count', 0)} marta | Holat: {vis}\n"
-        text += f"   🔗 Ssilka: <code>https://t.me/{bot_username}?start={t_id}</code>\n\n"
-        
-    # Xabar uzun bo'lib ketsa, Telegram o'tkazmaydi. Matnni kesish:
+        cat   = t.get("category", "Boshqa")
+        vis   = {"public": "🌍", "link": "🔗", "private": "🔒"}.get(t.get("visibility"), "")
+        text += (
+            f"{i}. <b>{title}</b> ({cat}) {vis}\n"
+            f"   🔑 Kod: <code>{tid}</code>\n"
+            f"   📊 Ishlangan: {t.get('solve_count', 0)} marta | "
+            f"⭐ O'rtacha: {t.get('avg_score', 0)}%\n"
+            f"   🔗 <code>https://t.me/{bot_uname}?start={tid}</code>\n\n"
+        )
+
     if len(text) > 4000:
-        text = text[:4000] + "\n...\n(Ro'yxat juda uzun)"
-        
-    await message.answer(text, parse_mode="HTML")
-        
+        text = text[:3990] + "\n...(ro'yxat qisqartirildi)"
+
+    await message.answer(text)

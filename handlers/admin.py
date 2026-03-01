@@ -1,227 +1,311 @@
 """
-👨‍💼 ADMIN PANEL HANDLER (AIOGRAM 3 - TO'LIQ VERSIYA)
-Imkoniyatlar: Statistika, Xabar tarqatish, Bloklash, Test o'chirish
+👑 ADMIN PANEL HANDLER
+Statistika, broadcast, bloklash, test o'chirish
 """
-import logging
 import asyncio
+import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton
+from aiogram.exceptions import TelegramForbiddenError
 
-from firebase.db import get_all_users, get_all_tests, get_db
-from keyboards.keyboards import admin_keyboard
-from utils.states import AdminPanel
 from config import ADMIN_IDS
+from firebase.db import get_all_users, get_all_tests, block_user, delete_test, get_test, get_db
+from utils.states import AdminPanel
+from keyboards.keyboards import main_reply_keyboard, admin_keyboard
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 router = Router()
 
-def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
 
-# ==========================================================
-# 1. ADMIN PANEL ASOSIY MENYUSI
-# ==========================================================
-@router.callback_query(F.data == "admin_panel")
-async def admin_panel_handler(callback: CallbackQuery, state: FSMContext):
+def _is_admin(uid: int) -> bool:
+    return uid in ADMIN_IDS
+
+
+# ═══════════════════════════════════════════════════════════
+# 1. ADMIN PANEL KIRISH
+# ═══════════════════════════════════════════════════════════
+
+@router.message(F.text == "👑 Admin Panel")
+async def admin_panel_msg(message: Message, state: FSMContext):
     await state.clear()
-    if not is_admin(callback.from_user.id):
-        await callback.answer("🚫 Sizda bu bo'limga kirish huquqi yo'q!", show_alert=True)
-        return
-        
-    await callback.answer()
-    text = (
-        "👨‍💼 <b>ADMINISTRATOR PANELI</b>\n\n"
-        "Tizimni to'liq boshqarish uchun quyidagi bo'limlardan birini tanlang:\n"
-        "• Barcha ma'lumotlar real vaqt rejimida (Firebase) olinadi."
+    if not _is_admin(message.from_user.id):
+        return await message.answer("❌ Sizda admin huquqi yo'q!")
+    await message.answer(
+        "<b>👑 BOSH BOSHQARUV PANELI</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Quyidagi bo'limlardan birini tanlang:",
+        reply_markup=admin_keyboard()
     )
-    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="HTML")
 
 
-# ==========================================================
-# 2. STATISTIKA VA TAHLIL
-# ==========================================================
+@router.callback_query(F.data == "admin_panel")
+async def admin_panel_cb(callback: CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("🚫 Ruxsat yo'q!", show_alert=True)
+    await state.clear()
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            "<b>👑 BOSH BOSHQARUV PANELI</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Quyidagi bo'limlardan birini tanlang:",
+            reply_markup=admin_keyboard()
+        )
+    except Exception:
+        pass
+
+
+# ═══════════════════════════════════════════════════════════
+# 2. STATISTIKA
+# ═══════════════════════════════════════════════════════════
+
 @router.callback_query(F.data == "admin_stats")
-async def show_stats_handler(callback: CallbackQuery):
-    if not is_admin(callback.from_user.id): return
-    await callback.answer("📊 Statistika hisoblanmoqda...")
-    
-    db = get_db()
-    users_ref = list(db.collection("users").stream())
-    tests_ref = list(db.collection("tests").stream())
-    results_ref = list(db.collection("results").stream())
-    
-    total_users = len(users_ref)
-    total_tests = len(tests_ref)
-    total_results = len(results_ref)
-    
-    avg_score = 0
-    pass_rate = 0
-    
-    if total_results > 0:
-        scores = [r.to_dict().get("percentage", 0) for r in results_ref]
-        avg_score = sum(scores) / len(scores)
-        passed = sum(1 for s in scores if s >= 60)
-        pass_rate = (passed / total_results) * 100
+async def admin_stats(callback: CallbackQuery):
+    if not _is_admin(callback.from_user.id): return
+    await callback.answer("⏳ Hisoblanmoqda...")
 
-    text = f"""
-📈 <b>TIZIMNING GLOBAL STATISTIKASI</b>
+    db           = get_db()
+    users_list   = list(db.collection("users").stream())
+    tests_list   = list(db.collection("tests").stream())
+    results_list = list(db.collection("results").stream())
 
-👥 <b>Foydalanuvchilar:</b>
-• Jami ro'yxatdan o'tganlar: <b>{total_users}</b> ta
+    total_u = len(users_list)
+    total_t = len(tests_list)
+    total_r = len(results_list)
 
-📋 <b>Testlar Bazasi:</b>
-• Yaratilgan jami testlar: <b>{total_tests}</b> ta
+    avg_pct  = 0.0
+    pass_rate = 0.0
+    if total_r:
+        scores   = [r.to_dict().get("percentage", 0) for r in results_list]
+        avg_pct  = sum(scores) / len(scores)
+        pass_rate = sum(1 for s in scores if s >= 60) / total_r * 100
 
-📊 <b>Natijalar (Ishlangan testlar):</b>
-• Jami urinishlar: <b>{total_results}</b> marta
-• O'rtacha o'zlashtirish: <b>{avg_score:.1f}%</b>
-• Muvaffaqiyatli o'tish (60%+): <b>{pass_rate:.1f}%</b>
-"""
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
+    text = (
+        f"📈 <b>TIZIM STATISTIKASI</b>\n\n"
+        f"👥 Foydalanuvchilar: <b>{total_u} ta</b>\n"
+        f"📋 Yaratilgan testlar: <b>{total_t} ta</b>\n"
+        f"🎯 Jami urinishlar: <b>{total_r} marta</b>\n"
+        f"📊 O'rtacha natija: <b>{avg_pct:.1f}%</b>\n"
+        f"✅ Muvaffaqiyat (60%+): <b>{pass_rate:.1f}%</b>"
+    )
+
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
-    
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    except Exception:
+        pass
 
 
-# ==========================================================
-# 3. XABAR TARQATISH (BROADCAST)
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+# 3. FOYDALANUVCHILAR RO'YXATI
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_users")
+async def admin_users(callback: CallbackQuery):
+    if not _is_admin(callback.from_user.id): return
+    await callback.answer("⏳ Ro'yxat tayyorlanmoqda...")
+
+    users = get_all_users()
+    if not users:
+        return await callback.message.answer("❌ Bazada foydalanuvchilar yo'q.")
+
+    text  = "ID | ISM | USERNAME | TESTLAR | O'RTACHA | HOLAT\n"
+    text += "─" * 60 + "\n"
+    for u in users:
+        uid   = u.get("telegram_id", "?")
+        name  = u.get("name", "Ismsiz")
+        uname = f"@{u.get('username')}" if u.get("username") else "—"
+        tc    = u.get("total_tests", 0)
+        avg   = round(u.get("avg_score", 0), 1)
+        holat = "🔴" if u.get("is_blocked") else "🟢"
+        text += f"{uid} | {name} | {uname} | {tc} ta | {avg}% | {holat}\n"
+
+    doc = BufferedInputFile(text.encode("utf-8"), filename="Foydalanuvchilar.txt")
+    await callback.message.answer_document(
+        doc,
+        caption=(
+            f"<b>👥 FOYDALANUVCHILAR RO'YXATI</b>\n"
+            f"Jami: <b>{len(users)} ta</b>"
+        )
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# 4. TESTLAR RO'YXATI
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_tests")
+async def admin_tests(callback: CallbackQuery):
+    if not _is_admin(callback.from_user.id): return
+    await callback.answer("⏳ Ro'yxat tayyorlanmoqda...")
+
+    tests = get_all_tests()
+    if not tests:
+        return await callback.message.answer("❌ Bazada testlar yo'q.")
+
+    text  = "KOD | FAN | MAVZU | SAVOLLAR | ISHLANGAN\n"
+    text += "─" * 60 + "\n"
+    for t in tests:
+        tid   = t.get("test_id", "?")
+        cat   = t.get("category", "Boshqa")
+        title = t.get("title", "Nomsiz")[:30]
+        qc    = len(t.get("questions", []))
+        sc    = t.get("solve_count", 0)
+        text += f"{tid} | {cat} | {title} | {qc} ta | {sc} marta\n"
+
+    doc = BufferedInputFile(text.encode("utf-8"), filename="Testlar.txt")
+    await callback.message.answer_document(
+        doc,
+        caption=(
+            f"<b>📋 TESTLAR RO'YXATI</b>\n"
+            f"Jami: <b>{len(tests)} ta</b>"
+        )
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# 5. XABAR TARQATISH
+# ═══════════════════════════════════════════════════════════
+
 @router.callback_query(F.data == "admin_broadcast")
-async def broadcast_prompt_handler(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id): return
+async def broadcast_start(callback: CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id): return
     await callback.answer()
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
+
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel"))
-    
+
     await callback.message.edit_text(
-        "📢 <b>XABAR TARQATISH</b>\n\n"
-        "Barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni yozing (rasm yoki video ham mumkin):",
+        "<b>📢 XABAR TARQATISH</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Barcha foydalanuvchilarga yubormoqchi bo'lgan\n"
+        "xabaringizni yozing (matn, rasm, video):",
         reply_markup=builder.as_markup()
     )
     await state.set_state(AdminPanel.broadcast)
 
+
 @router.message(AdminPanel.broadcast)
-async def send_broadcast_message(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id): return
-    
-    status_msg = await message.answer("⏳ Xabar tarqatish boshlandi. Iltimos kuting...")
-    
-    db = get_db()
-    users = list(db.collection("users").stream())
-    
-    success_count = 0
-    fail_count = 0
-    
-    for user_doc in users:
-        uid = user_doc.id
+async def broadcast_send(message: Message, state: FSMContext):
+    if not _is_admin(message.from_user.id): return
+
+    status  = await message.answer("⏳ Tarqatish boshlandi...")
+    users   = get_all_users()
+    ok = fail = 0
+
+    for u in users:
+        uid = u.get("telegram_id")
+        if not uid:
+            continue
         try:
-            # Xabarni nusxalab yuborish (forward emas, copy)
-            await message.send_copy(chat_id=uid)
-            success_count += 1
+            await message.bot.copy_message(
+                chat_id=uid,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
+            ok += 1
         except TelegramForbiddenError:
-            # User botni bloklagan bo'lsa, bazada is_blocked = True qilamiz
-            db.collection("users").document(uid).update({"is_blocked": True})
-            fail_count += 1
+            block_user(uid, True)
+            fail += 1
         except Exception:
-            fail_count += 1
-            
-        # Telegram API limitlariga tushmaslik uchun (Max 30 ta xabar / soniya)
-        await asyncio.sleep(0.05)
-        
+            fail += 1
+        await asyncio.sleep(0.05)   # Rate limit: 30 msg/sec
+
     await state.clear()
-    await status_msg.edit_text(
-        f"✅ <b>XABAR TARQATISH YAKUNLANDI!</b>\n\n"
-        f"📩 Muvaffaqiyatli yuborildi: <b>{success_count}</b> ta\n"
-        f"❌ Yuborilmadi (Bloklaganlar): <b>{fail_count}</b> ta\n",
-        parse_mode="HTML"
+    await status.edit_text(
+        f"<b>✅ TARQATISH YAKUNLANDI</b>\n\n"
+        f"🟢 Muvaffaqiyatli: {ok} ta\n"
+        f"🔴 Bloklaganlar: {fail} ta"
     )
 
 
-# ==========================================================
-# 4. FOYDALANUVCHILARNI BOSHQRISH VA BLOKLASH
-# ==========================================================
-@router.callback_query(F.data == "admin_users")
-async def show_users_prompt(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id): return
+# ═══════════════════════════════════════════════════════════
+# 6. FOYDALANUVCHI BLOKLASH
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_block")
+async def block_start(callback: CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id): return
     await callback.answer()
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
+
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
-    
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel"))
     await callback.message.edit_text(
-        "👥 <b>FOYDALANUVCHINI BLOKLASH / OCHISH</b>\n\n"
-        "Iltimos, bloklamoqchi yoki blokdan chiqarmoqchi bo'lgan foydalanuvchining <b>Telegram ID</b> raqamini yozib yuboring:",
+        "<b>🚫 BLOKLASH / OCHISH</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Foydalanuvchining <b>Telegram ID</b> raqamini yuboring:",
         reply_markup=builder.as_markup()
     )
     await state.set_state(AdminPanel.block_user)
 
+
 @router.message(AdminPanel.block_user)
-async def block_user_action(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id): return
-    target_id = message.text.strip()
-    
-    if not target_id.isdigit():
-        await message.answer("❌ Telegram ID faqat raqamlardan iborat bo'lishi kerak!")
-        return
-        
-    db = get_db()
-    user_ref = db.collection("users").document(target_id)
-    doc = user_ref.get()
-    
-    if not doc.exists:
-        await message.answer("❌ Bunday ID ga ega foydalanuvchi bazada topilmadi.")
-        return
-        
-    current_status = doc.to_dict().get("is_blocked", False)
-    new_status = not current_status
-    user_ref.update({"is_blocked": new_status})
-    
-    action_text = "🔒 BLOKLANDI" if new_status else "🔓 BLOKDAN CHIQARILDI"
-    await message.answer(f"✅ Foydalanuvchi (ID: {target_id}) holati o'zgardi:\n<b>{action_text}</b>")
+async def block_process(message: Message, state: FSMContext):
+    if not _is_admin(message.from_user.id): return
+    if not message.text.strip().lstrip("-").isdigit():
+        return await message.answer("❌ Faqat raqamdan iborat Telegram ID kiriting.")
+
+    uid  = int(message.text.strip())
+    user = None
+    for u in get_all_users():
+        if u.get("telegram_id") == uid:
+            user = u
+            break
+
+    if not user:
+        return await message.answer("❌ Bu IDga ega foydalanuvchi topilmadi.")
+
+    new_status = not user.get("is_blocked", False)
+    block_user(uid, new_status)
     await state.clear()
 
+    status_text = "🔴 BLOKLANDI" if new_status else "🟢 BLOKDAN CHIQARILDI"
+    await message.answer(
+        f"<b>✅ BAJARILDI</b>\n\n"
+        f"👤 {user.get('name')}\n"
+        f"🆔 {uid}\n"
+        f"Holat: <b>{status_text}</b>"
+    )
 
-# ==========================================================
-# 5. TESTLARNI BOSHQRISH VA O'CHIRISH
-# ==========================================================
-@router.callback_query(F.data == "admin_delete_test")
-async def delete_test_prompt(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id): return
+
+# ═══════════════════════════════════════════════════════════
+# 7. TEST O'CHIRISH
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_del_test")
+async def del_test_start(callback: CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id): return
     await callback.answer()
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
+
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="◀️ Orqaga", callback_data="admin_panel"))
-    
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel"))
     await callback.message.edit_text(
-        "🗑 <b>TESTNI O'CHIRISH</b>\n\n"
-        "O'chirmoqchi bo'lgan testning <b>Test ID</b> sini (kodi) yozib yuboring:",
+        "<b>🗑 TESTNI O'CHIRISH</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "O'chirmoqchi bo'lgan <b>Test KODINI</b> yuboring:\n"
+        "<i>⚠️ O'chirilgan test qaytarilmaydi!</i>",
         reply_markup=builder.as_markup()
     )
     await state.set_state(AdminPanel.delete_test)
 
+
 @router.message(AdminPanel.delete_test)
-async def delete_test_action(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id): return
-    test_id = message.text.strip()
-    
-    db = get_db()
-    test_ref = db.collection("tests").document(test_id)
-    
-    if not test_ref.get().exists:
-        await message.answer("❌ Bunday ID ga ega test topilmadi.")
-        return
-        
-    test_ref.delete()
-    await message.answer(f"✅ Test (ID: {test_id}) bazadan butunlay o'chirildi.")
+async def del_test_process(message: Message, state: FSMContext):
+    if not _is_admin(message.from_user.id): return
+    tid  = message.text.strip()
+    test = get_test(tid)
+
+    if not test:
+        return await message.answer("❌ Bu kodli test topilmadi.")
+
+    delete_test(tid)
     await state.clear()
+    await message.answer(
+        f"<b>✅ TEST O'CHIRILDI</b>\n\n"
+        f"🗑 Kod: <code>{tid}</code>\n"
+        f"📝 Mavzu: {test.get('title')}"
+    )

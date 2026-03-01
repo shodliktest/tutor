@@ -1,9 +1,9 @@
 """
-📚 TEST YECHISH VA TAHLIL HANDLER
-✅ Lambda filter o'rniga MagicFilter
+📚 TEST YECHISH HANDLER — Inline tugmalar rejimi
+✅ Lambda o'rniga Filter class (Aiogram 3)
 ✅ asyncio.sleep race condition hal qilindi
-✅ delete+answer xatosi tuzatildi
-✅ cancel_test to'g'ri ishlaydi
+✅ delete + bot.send_message pattern
+✅ Cancel safe (har sekund state tekshirish)
 """
 import time
 import asyncio
@@ -15,57 +15,65 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
-from firebase.db import get_test, save_result, get_user, get_db, get_all_tests
+from firebase.db import get_test, get_public_tests, save_result, get_result_by_id
 from utils.states import TestSolving
-from keyboards.keyboards import result_keyboard, main_reply_keyboard
+from utils.scoring import calculate_score, format_result
+from keyboards.keyboards import (
+    main_reply_keyboard, result_keyboard, answer_keyboard, feedback_keyboard
+)
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 router = Router()
 
 LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
 
-# ==========================================================
-# 1. TESTLAR KATALOGI
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+# 1. TESTLAR KATALOGI — Fan va testlar ro'yxati
+# ═══════════════════════════════════════════════════════════
+
 async def send_categories_menu(event):
-    all_tests = get_all_tests()
-    public_tests = [t for t in all_tests if t.get("visibility") == "public"]
+    """Ommaviy testlardan kategoriyalar menyusini yuborish"""
+    tests = get_public_tests()
 
     text = (
         "<b>📚 TESTLAR BO'LIMI</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<i>Test kodini (ID) to'g'ridan-to'g'ri yozib yuboring "
+        "<i>Test kodini to'g'ridan-to'g'ri yozib yuboring\n"
         "yoki pastdagi fanlardan birini tanlang:</i>\n\n"
     )
 
     builder = InlineKeyboardBuilder()
-    if not public_tests:
-        text += "Hozircha bazada ommaviy testlar mavjud emas."
+    if not tests:
+        text += "📭 Hozircha ommaviy testlar mavjud emas."
     else:
-        categories: dict[str, int] = {}
-        for t in public_tests:
-            cat = t.get("category", "Boshqa")
-            categories[cat] = categories.get(cat, 0) + 1
-        for cat, count in categories.items():
-            cb_data = f"cat_{cat}"[:40]
-            builder.row(InlineKeyboardButton(text=f"📁 {cat} ({count})", callback_data=cb_data))
+        cats: dict = {}
+        for t in tests:
+            c = t.get("category", "Boshqa")
+            cats[c] = cats.get(c, 0) + 1
+        for cat, cnt in cats.items():
+            cb = f"cat_{cat}"[:40]
+            builder.row(InlineKeyboardButton(text=f"📁 {cat} ({cnt})", callback_data=cb))
 
     if isinstance(event, Message):
-        await event.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await event.answer(text, reply_markup=builder.as_markup())
     else:
-        await event.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        try:
+            await event.message.edit_text(text, reply_markup=builder.as_markup())
+        except Exception:
+            await event.message.answer(text, reply_markup=builder.as_markup())
 
 
 @router.message(StateFilter(None), F.text == "📚 Testlar")
-async def tests_menu_handler(message: Message, state: FSMContext):
+async def tests_menu(message: Message, state: FSMContext):
     await state.clear()
     await send_categories_menu(message)
 
 
-# ── Aiogram 3 da lambda ishlamaydi → Filter class ishlatiladi ──
-class _IsTestCode(object):
-    """6 xonali yoki 20+ belgilik, bo'sh joy/slash/enter yo'q"""
+# ── Test kodi filteri (Aiogram 3 — lambda o'rniga class) ──
+
+class _IsTestCode:
+    """6 ta yoki 8 ta belgilik, bo'sh joy/slash/enter yo'q"""
     def __call__(self, msg: Message) -> bool:
         t = (msg.text or "").strip()
         return (
@@ -73,377 +81,372 @@ class _IsTestCode(object):
             and "/" not in t
             and "\n" not in t
             and " " not in t
-            and (len(t) == 6 or len(t) >= 20)
+            and (len(t) == 6 or len(t) == 8 or len(t) >= 20)
         )
+
 
 _test_code_filter = _IsTestCode()
 
 
 @router.message(StateFilter(None), F.text, _test_code_filter)
-async def direct_code_handler(message: Message, state: FSMContext):
-    test_id = (message.text or "").strip()
-    test = get_test(test_id)
+async def direct_code_handler(message: Message):
+    """Test kodi yozilsa — testni topib ko'rsatish"""
+    tid  = (message.text or "").strip()
+    test = get_test(tid)
     if not test:
         return  # Noto'g'ri kod — jimgina o'tkazib yuboramiz
 
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text="🚀 Testni boshlash",
-        callback_data=f"start_test_{test.get('test_id')}"
-    ))
+    from keyboards.keyboards import test_info_keyboard
+    qs    = test.get("questions", [])
+    diff_map = {"easy": "🟢 Oson", "medium": "🟡 O'rtacha",
+                "hard": "🔴 Qiyin", "expert": "⚡ Ekspert"}
+    diff = diff_map.get(test.get("difficulty", ""), "")
+
     text = (
         f"<b>🔍 TEST TOPILDI!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🏷 <b>Mavzu:</b> {test.get('title')}\n"
-        f"📁 <b>Fan:</b> {test.get('category')}\n"
-        f"📋 <b>Savollar:</b> {test.get('questionCount', len(test.get('questions', [])))} ta\n"
+        f"📝 <b>{test.get('title')}</b>\n"
+        f"📁 Fan: {test.get('category', '')}\n"
+        f"📋 Savollar: <b>{len(qs)} ta</b>\n"
+        f"📊 Qiyinlik: <b>{diff}</b>\n"
+        f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>"
     )
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(text, reply_markup=test_info_keyboard(tid))
 
 
 @router.callback_query(F.data.startswith("cat_"))
-async def show_tests_in_category(callback: CallbackQuery):
+async def show_category(callback: CallbackQuery):
     await callback.answer()
-    cat_name = callback.data[4:]
+    cat = callback.data[4:]
 
-    all_tests = get_all_tests()
-    cat_tests = [
-        t for t in all_tests
-        if t.get("visibility") == "public"
-        and str(t.get("category", "")).startswith(cat_name)
-    ]
-
-    if not cat_tests:
+    tests = [t for t in get_public_tests() if str(t.get("category", "")).startswith(cat)]
+    if not tests:
         await callback.message.edit_text("❌ Bu fanda testlar topilmadi.")
         return
 
     text = (
-        f"<b>📁 FAN: {cat_tests[0].get('category','Boshqa').upper()}</b>\n"
+        f"<b>📁 {cat.upper()}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Qaysi testni ishlashni xohlaysiz?"
     )
     builder = InlineKeyboardBuilder()
-    for t in cat_tests:
+    for t in tests:
         builder.row(InlineKeyboardButton(
-            text=f"📝 {t.get('title','Nomsiz test')}",
-            callback_data=f"start_test_{t.get('test_id')}"
+            text=f"📝 {t.get('title', 'Nomsiz')}  ({t.get('solve_count', 0)} marta)",
+            callback_data=f"view_test_{t.get('test_id')}"
         ))
-    builder.row(InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_categories"))
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    builder.row(InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_cats"))
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
 
 
-@router.callback_query(F.data == "back_to_categories")
-async def back_to_cat_handler(callback: CallbackQuery):
+@router.callback_query(F.data == "back_to_cats")
+async def back_to_cats(callback: CallbackQuery):
     await callback.answer()
     await send_categories_menu(callback)
 
 
-# ==========================================================
-# 2. TESTNI BOSHLASH VA SAVOL YUBORISH
-# ==========================================================
-@router.callback_query(F.data.startswith("start_test_"))
-async def start_test_handler(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("view_test_"))
+async def view_test(callback: CallbackQuery):
+    """Test haqida to'liq ma'lumot — Inline yoki Poll tanlash"""
     await callback.answer()
-    test_id = callback.data[11:]
-    test = get_test(test_id)
+    tid  = callback.data[10:]
+    test = get_test(tid)
+    if not test:
+        await callback.message.answer("❌ Test topilmadi.")
+        return
+
+    qs = test.get("questions", [])
+    diff_map = {"easy": "🟢 Oson", "medium": "🟡 O'rtacha",
+                "hard": "🔴 Qiyin", "expert": "⚡ Ekspert"}
+    diff = diff_map.get(test.get("difficulty", ""), "")
+    vis_map = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}
+    vis = vis_map.get(test.get("visibility", ""), "")
+
+    text = (
+        f"<b>📋 TEST MA'LUMOTLARI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{test.get('title')}</b>\n"
+        f"📁 Fan: {test.get('category', '')}\n"
+        f"📊 Qiyinlik: {diff}\n"
+        f"📋 Savollar: <b>{len(qs)} ta</b>\n"
+        f"⏱ Vaqt: <b>{test.get('time_limit', 0) or 'Cheksiz'} daqiqa</b>\n"
+        f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n"
+        f"🔄 Ishlangan: <b>{test.get('solve_count', 0)} marta</b>\n"
+        f"🔒 Ko'rinish: {vis}\n\n"
+        f"<i>Qaysi rejimda ishlashni tanlang:</i>\n"
+        f"▶️ <b>Inline</b> — Har savoldan keyin to'g'ri/noto'g'ri ko'rsatiladi\n"
+        f"📊 <b>Poll</b> — Quiz Bot uslubida native poll orqali"
+    )
+    from keyboards.keyboards import test_info_keyboard
+    await callback.message.edit_text(text, reply_markup=test_info_keyboard(tid))
+
+
+# ═══════════════════════════════════════════════════════════
+# 2. INLINE TEST BOSHLASH
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data.startswith("start_test_"))
+async def start_inline_test(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    tid  = callback.data[11:]
+    test = get_test(tid)
 
     if not test:
         await callback.message.answer("❌ Test topilmadi yoki o'chirilgan.")
         return
 
-    questions = test.get("questions", [])
-    if not questions:
-        await callback.message.answer("❌ Ushbu testda savollar yo'q.")
+    qs = test.get("questions", [])
+    if not qs:
+        await callback.message.answer("❌ Bu testda savollar yo'q.")
         return
 
     await state.set_data({
         "test_data":     test,
-        "questions":     questions,
+        "questions":     qs,
         "current_index": 0,
         "user_answers":  {},
         "start_time":    time.time(),
-        "cancelled":     False,
     })
     await state.set_state(TestSolving.answering)
     await _send_question(callback, state, edit=True)
 
 
 async def _send_question(event, state: FSMContext, edit: bool = False):
-    data = await state.get_data()
-    questions    = data["questions"]
-    idx          = data["current_index"]
-    test_title   = data["test_data"].get("title", "Nomsiz test")
-    q            = questions[idx]
-    time_limit   = data["test_data"].get("time_limit", 0)
-    start_time   = data.get("start_time")
+    """Savol xabarini yuborish yoki tahrirlash"""
+    data       = await state.get_data()
+    qs         = data["questions"]
+    idx        = data["current_index"]
+    test_title = data["test_data"].get("title", "Test")
+    q          = qs[idx]
+    t_limit    = data["test_data"].get("time_limit", 0)
+    start_time = data.get("start_time", time.time())
 
-    time_text = ""
-    if time_limit > 0 and start_time:
-        remain = max(0, time_limit * 60 - int(time.time() - start_time))
+    # Vaqt qoldiq
+    time_txt = ""
+    if t_limit > 0:
+        remain = max(0, t_limit * 60 - int(time.time() - start_time))
         m, s   = divmod(remain, 60)
-        time_text = f" | ⏱ {m:02d}:{s:02d}"
+        time_txt = f" | ⏱ {m:02d}:{s:02d}"
+
+        # Vaqt tugagan bo'lsa — avtomatik yakunlash
+        if remain == 0:
+            await _finish_test(event, state, data)
+            return
 
     header = (
-        f"<b>📝 {test_title} | {idx+1}/{len(questions)}{time_text}</b>\n"
+        f"<b>📝 {test_title} | {idx+1}/{len(qs)}{time_txt}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
-    q_text   = q.get("question", q.get("text", "Savol matni kiritilmagan"))
-    body     = f"<b>{q_text}</b>\n\n"
-    builder  = InlineKeyboardBuilder()
+    q_text = q.get("question", q.get("text", "Savol matni yo'q"))
+    body   = f"<b>{q_text}</b>\n\n"
 
+    letters = []
     for i, opt in enumerate(q.get("options", [])):
-        letter   = LETTERS[i] if i < len(LETTERS) else str(i)
+        letter   = LETTERS[i] if i < len(LETTERS) else str(i + 1)
         opt_text = str(opt).split(")", 1)[-1].strip() if ")" in str(opt) else str(opt)
         body    += f"▫️ <b>{letter})</b> <i>{opt_text}</i>\n"
-        builder.add(InlineKeyboardButton(text=letter, callback_data=f"ans_{letter}"))
+        letters.append(letter)
 
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="❌ Testni to'xtatish", callback_data="cancel_test"))
-
+    kb        = answer_keyboard(letters)
     full_text = header + body
-    kb = builder.as_markup()
 
     if edit and isinstance(event, CallbackQuery):
-        await event.message.edit_text(full_text, reply_markup=kb, parse_mode="HTML")
-    else:
-        target = event.message if isinstance(event, CallbackQuery) else event
-        await target.answer(full_text, reply_markup=kb, parse_mode="HTML")
+        try:
+            await event.message.edit_text(full_text, reply_markup=kb)
+            return
+        except Exception:
+            pass
+
+    target = event.message if isinstance(event, CallbackQuery) else event
+    await target.answer(full_text, reply_markup=kb)
 
 
-# ==========================================================
-# 3. JAVOB — 5 SEKUND KO'RSATISH → KEYINGI SAVOL
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+# 3. JAVOB QAYTA ISHLASH — 5 sekund feedback
+# ═══════════════════════════════════════════════════════════
+
 @router.callback_query(F.data.startswith("ans_"), TestSolving.answering)
-async def process_button_answer(callback: CallbackQuery, state: FSMContext):
+async def process_answer(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     if await state.get_state() != TestSolving.answering.state:
         return
 
-    answer     = callback.data[4:]
-    data       = await state.get_data()
-    idx        = data["current_index"]
-    questions  = data["questions"]
-    q          = questions[idx]
-    test_title = data["test_data"].get("title", "Nomsiz test")
+    letter = callback.data[4:]
+    data   = await state.get_data()
+    idx    = data["current_index"]
+    qs     = data["questions"]
+    q      = qs[idx]
+    title  = data["test_data"].get("title", "Test")
 
     # Javobni saqlash
-    answers = data["user_answers"]
-    answers[str(idx)] = answer
+    answers          = data.get("user_answers", {})
+    answers[str(idx)] = letter
     await state.update_data(user_answers=answers)
 
     # To'g'ri javobni aniqlash
-    c_ans   = q.get("correct", "")
-    c_letter = str(c_ans).split(")")[0].strip() if isinstance(c_ans, str) and ")" in str(c_ans) else str(c_ans)
-    if isinstance(c_ans, int):
-        c_letter = LETTERS[c_ans] if c_ans < len(LETTERS) else "?"
+    correct = q.get("correct", "")
+    if isinstance(correct, int):
+        c_letter = LETTERS[correct] if correct < len(LETTERS) else "?"
+    else:
+        c_str    = str(correct).strip()
+        c_letter = c_str[0].upper() if c_str else "?"
 
-    is_correct = answer.lower() == c_letter.lower()
+    is_correct = letter.upper() == c_letter.upper()
 
-    # Feedback ekrani
-    header    = (
-        f"<b>📝 {test_title} | {idx+1}/{len(questions)}</b>\n"
+    # Feedback xabari
+    header = (
+        f"<b>📝 {title} | {idx+1}/{len(qs)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
-    q_text    = q.get("question", q.get("text", "Savol matni kiritilmagan"))
-    text_body = f"<b>{q_text}</b>\n\n"
+    q_text = q.get("question", q.get("text", "Savol"))
+    body   = f"<b>{q_text}</b>\n\n"
 
     for i, opt in enumerate(q.get("options", [])):
-        letter   = LETTERS[i] if i < len(LETTERS) else str(i)
-        opt_text = str(opt).split(")", 1)[-1].strip() if ")" in str(opt) else str(opt)
-        if letter.lower() == c_letter.lower():
-            text_body += f"✅ <b>{letter})</b> <i>{opt_text}</i>\n"
-        elif letter.lower() == answer.lower() and not is_correct:
-            text_body += f"❌ <b>{letter})</b> <i>{opt_text}</i>\n"
+        ltr  = LETTERS[i] if i < len(LETTERS) else str(i + 1)
+        otxt = str(opt).split(")", 1)[-1].strip() if ")" in str(opt) else str(opt)
+        if ltr.upper() == c_letter.upper():
+            body += f"✅ <b>{ltr})</b> <i>{otxt}</i>\n"
+        elif ltr.upper() == letter.upper() and not is_correct:
+            body += f"❌ <b>{ltr})</b> <i>{otxt}</i>\n"
         else:
-            text_body += f"▫️ <b>{letter})</b> <i>{opt_text}</i>\n"
+            body += f"▫️ <b>{ltr})</b> <i>{otxt}</i>\n"
 
-    text_body += "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-    text_body += "🎯 <b>Natija:</b> ✅ TO'G'RI\n" if is_correct else "🎯 <b>Natija:</b> ❌ NOTO'G'RI\n"
+    body += "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+    body += "🎯 <b>Natija:</b> ✅ TO'G'RI!\n" if is_correct else "🎯 <b>Natija:</b> ❌ NOTO'G'RI\n"
 
-    explanation = q.get("explanation", "")
-    if explanation and explanation not in ("Izoh kiritilmagan", "Izoh kiritilmagan.", "Izoh yo'q"):
-        text_body += f"💡 <b>Izoh:</b> <i>{explanation}</i>\n"
+    expl = q.get("explanation", "")
+    if expl and expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan"):
+        body += f"💡 <b>Izoh:</b> <i>{expl}</i>\n"
 
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="⏳ Keyingi savolga o'tilmoqda...", callback_data="wait_btn"))
-    builder.row(InlineKeyboardButton(text="❌ Testni to'xtatish", callback_data="cancel_test"))
+    await callback.message.edit_text(header + body, reply_markup=feedback_keyboard())
 
-    await callback.message.edit_text(
-        header + text_body,
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML"
-    )
-
-    # 5 sekund — har sekund state tekshiriladi (cancel safe)
+    # 5 sekund — har sekund cancel tekshirish
     for _ in range(5):
         await asyncio.sleep(1)
         if await state.get_state() != TestSolving.answering.state:
-            return  # Cancel bosilgan — chiqib ketamiz
+            return
 
     # Keyingi savol yoki yakunlash
     fresh = await state.get_data()
-    if idx < len(questions) - 1:
+    if idx < len(qs) - 1:
         await state.update_data(current_index=idx + 1)
         await _send_question(callback, state, edit=True)
     else:
-        await _finish_test(callback.message, state, fresh)
+        await _finish_test(callback, state, fresh)
 
 
 @router.callback_query(F.data == "wait_btn")
-async def wait_btn_handler(callback: CallbackQuery):
+async def wait_btn(callback: CallbackQuery):
     await callback.answer("⏳ Biroz kuting...", show_alert=False)
 
 
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
 # 4. TESTNI TO'XTATISH
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
+
 @router.callback_query(F.data == "cancel_test", TestSolving.answering)
-async def cancel_test_handler(callback: CallbackQuery, state: FSMContext):
+async def cancel_test(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer("❌ Test to'xtatildi")
     try:
         await callback.message.delete()
     except Exception:
         pass
-
-    # delete() dan keyin answer() ishlamaydi — bot.send_message kerak
     await callback.bot.send_message(
         callback.message.chat.id,
         "<b>❌ TEST TO'XTATILDI</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "Natijalar saqlanmadi.",
-        reply_markup=main_reply_keyboard(callback.from_user.id),
-        parse_mode="HTML"
+        reply_markup=main_reply_keyboard(callback.from_user.id)
     )
 
 
-# ==========================================================
-# 5. YAKUNLASH VA BAHOLASH
-# ==========================================================
-async def _finish_test(message: Message, state: FSMContext, data: dict):
+# ═══════════════════════════════════════════════════════════
+# 5. TEST YAKUNLASH VA NATIJA SAQLASH
+# ═══════════════════════════════════════════════════════════
+
+async def _finish_test(event, state: FSMContext, data: dict):
+    """Testni yakunlash, natijani saqlash va ko'rsatish"""
     test       = data.get("test_data", {})
-    questions  = data.get("questions", [])
+    qs         = data.get("questions", [])
     u_answers  = data.get("user_answers", {})
     start_time = data.get("start_time", time.time())
+    elapsed    = int(time.time() - start_time)
 
-    correct_count    = 0
-    detailed_results = []
+    # Ball hisoblash
+    scored = calculate_score(qs, u_answers)
+    scored["time_spent"]     = elapsed
+    scored["passing_score"]  = test.get("passing_score", 60)
+    scored["mode"]           = "inline"
 
-    for i, q in enumerate(questions):
-        u_ans  = u_answers.get(str(i), "Belgilanmagan")
-        c_ans  = q.get("correct", "")
+    uid = (event.from_user if isinstance(event, CallbackQuery) else event.from_user).id
+    chat_id = (event.message if isinstance(event, CallbackQuery) else event).chat.id
 
-        if isinstance(c_ans, int):
-            c_letter = LETTERS[c_ans] if c_ans < len(LETTERS) else "?"
-            opts = q.get("options", [])
-            c_full = f"{c_letter}) {opts[c_ans]}" if c_ans < len(opts) else c_letter
-        else:
-            c_letter = str(c_ans).split(")")[0].strip() if ")" in str(c_ans) else str(c_ans)
-            c_full   = str(c_ans)
+    result_id = save_result(uid, test.get("test_id"), scored)
 
-        is_correct = (str(u_ans).lower() == c_letter.lower()) and u_ans != "Belgilanmagan"
-        if is_correct:
-            correct_count += 1
-
-        detailed_results.append({
-            "question_index": i,
-            "user_answer":    str(u_ans),
-            "correct_answer": c_full,
-            "is_correct":     is_correct,
-        })
-
-    total   = len(questions)
-    score   = (correct_count / total * 100) if total else 0
-    passed  = score >= test.get("passing_score", 60)
-    elapsed = int(time.time() - start_time)
-    m, s    = divmod(elapsed, 60)
-
-    result_data = {
-        "score":            score,
-        "correct_count":    correct_count,
-        "total_questions":  total,
-        "passed":           passed,
-        "time_spent":       elapsed,
-        "detailed_results": detailed_results,
-    }
-
-    chat_id   = message.chat.id
-    result_id = save_result(chat_id, test.get("test_id"), result_data)
-
-    text = (
-        f"<b>📊 YAKUNIY NATIJA</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📝 <b>Mavzu:</b> {test.get('title','Nomsiz')}\n"
-        f"📋 <b>Savollar:</b> {total} ta\n"
-        f"✅ <b>To'g'ri:</b> {correct_count} ta\n"
-        f"🎯 <b>Natija:</b> {round(score,1)}%\n"
-        f"⏱ <b>Vaqt:</b> {m} daq {s} son\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🎓 <b>Holat:</b> {'🎉 MUVAFFAQIYATLI!' if passed else '❌ YIQILDINGIZ.'}"
-    )
-
+    text = format_result(scored, test)
     await state.clear()
 
     try:
-        await message.delete()
+        if isinstance(event, CallbackQuery):
+            await event.message.delete()
+        else:
+            await event.delete()
     except Exception:
         pass
 
-    await message.bot.send_message(
+    await event.bot.send_message(
         chat_id, text,
-        reply_markup=result_keyboard(test.get("test_id"), result_id, passed),
-        parse_mode="HTML"
+        reply_markup=result_keyboard(test.get("test_id"), result_id)
     )
 
 
-# ==========================================================
+# ═══════════════════════════════════════════════════════════
 # 6. BATAFSIL TAHLIL
-# ==========================================================
-@router.callback_query(F.data.startswith("analysis_"))
-async def analysis_handler(callback: CallbackQuery):
-    await callback.answer("⏳ Tahlil yuklanmoqda...")
-    result_id = callback.data[9:]
+# ═══════════════════════════════════════════════════════════
 
-    res_doc = get_db().collection("results").document(result_id).get()
-    if not res_doc.exists:
-        await callback.message.answer("❌ Natija bazadan topilmadi.")
+@router.callback_query(F.data.startswith("analysis_"))
+async def analysis(callback: CallbackQuery):
+    await callback.answer("⏳ Tahlil yuklanmoqda...")
+    rid = callback.data[9:]
+
+    res = get_result_by_id(rid)
+    if not res:
+        await callback.message.answer("❌ Natija topilmadi.")
         return
 
-    res_data  = res_doc.to_dict()
-    detailed  = res_data.get("detailed_results", [])
-    test      = get_test(res_data.get("test_id"))
+    from firebase.db import get_test as _get_test
+    test      = _get_test(res.get("test_id", ""))
+    detailed  = res.get("detailed_results", [])
     questions = test.get("questions", []) if test else []
 
     if not detailed:
-        await callback.message.answer(
-            "<b>⚠️ ESKI TEST</b>\nBu eski test, uning tahlili yo'q.",
-            parse_mode="HTML"
-        )
+        await callback.message.answer("⚠️ Bu test uchun tahlil mavjud emas.")
         return
 
-    title = test.get("title", "Test").upper() if test else "TEST"
-    chunks: list[str] = []
-    chunk  = f"<b>📝 {title} — TAHLIL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    title  = test.get("title", "Test").upper() if test else "TEST"
+    chunks = []
+    chunk  = f"<b>📝 {title} — BATAFSIL TAHLIL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
     for d in detailed:
-        i          = d.get("question_index", 0)
-        is_correct = d.get("is_correct", False)
-        user_ans   = d.get("user_answer", "Belgilanmagan")
-        corr_ans   = d.get("correct_answer", "Noma'lum")
-        q_text     = questions[i].get("question", "") if i < len(questions) else ""
-        explanation= questions[i].get("explanation", "") if i < len(questions) else ""
+        i      = d.get("question_index", 0)
+        is_c   = d.get("is_correct", False)
+        u_ans  = d.get("user_answer", "Belgilanmagan")
+        c_ans  = d.get("correct_answer", "Noma'lum")
+        q_text = questions[i].get("question", "") if i < len(questions) else ""
+        expl   = questions[i].get("explanation", "") if i < len(questions) else ""
 
-        holat = "✅ TO'G'RI" if is_correct else "❌ XATO"
+        holat = "✅ TO'G'RI" if is_c else "❌ XATO"
         block = (
             f"<b>Savol {i+1}:</b> {q_text}\n"
             f"Holat: {holat}\n"
-            f"👤 <b>Siz:</b> <i>{user_ans}</i>\n"
+            f"👤 <b>Siz:</b> <i>{u_ans}</i>\n"
         )
-        if not is_correct:
-            block += f"🎯 <b>To'g'ri:</b> <i>{corr_ans}</i>\n"
-        if explanation and explanation not in ("Izoh yo'q", "Izoh kiritilmagan", "Izoh kiritilmagan."):
-            block += f"💡 <b>Izoh:</b> <i>{explanation}</i>\n"
+        if not is_c:
+            block += f"🎯 <b>To'g'ri:</b> <i>{c_ans}</i>\n"
+        if expl and expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan"):
+            block += f"💡 <b>Izoh:</b> <i>{expl}</i>\n"
         block += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
         if len(chunk) + len(block) > 4000:
@@ -455,4 +458,4 @@ async def analysis_handler(callback: CallbackQuery):
         chunks.append(chunk)
 
     for ch in chunks:
-        await callback.message.answer(ch, parse_mode="HTML", protect_content=True)
+        await callback.message.answer(ch, protect_content=True)
