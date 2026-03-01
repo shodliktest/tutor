@@ -1,6 +1,5 @@
 """
 🗄️ FIREBASE DATABASE — barcha CRUD operatsiyalar
-Composite index kerak emas: faqat bitta where() ishlatiladi
 """
 from firebase.config import get_db
 from datetime import datetime, timezone
@@ -12,14 +11,6 @@ UTC = timezone.utc
 
 
 def _safe_dt(val):
-    """
-    Firebase DatetimeWithNanoseconds, datetime (naive/aware), None —
-    barchasini UTC-aware datetime ga o'tkazadi.
-    MUHIM: isinstance(val, datetime) ishlatilmaydi — chunki
-    DatetimeWithNanoseconds ba'zan naive bo'lib keladi va
-    isinstance tekshiruvi yetarli emas.
-    Faqat .timestamp() usulidan foydalanamiz — universal yechim.
-    """
     try:
         if val is None:
             return datetime.min.replace(tzinfo=UTC)
@@ -30,9 +21,7 @@ def _safe_dt(val):
     return datetime.min.replace(tzinfo=UTC)
 
 
-# ═══════════════════════════════════════════════════════════
-# USERS
-# ═══════════════════════════════════════════════════════════
+# ── USERS ────────────────────────────────────────────────
 
 def create_user(tg_id: int, name: str, username: str = None, role: str = "user") -> dict:
     data = {
@@ -66,9 +55,7 @@ def block_user(tg_id: int, blocked: bool = True):
     })
 
 
-# ═══════════════════════════════════════════════════════════
-# TESTS
-# ═══════════════════════════════════════════════════════════
+# ── TESTS ────────────────────────────────────────────────
 
 def create_test(creator_id: int, data: dict) -> str:
     db  = get_db()
@@ -80,6 +67,7 @@ def create_test(creator_id: int, data: dict) -> str:
         "difficulty": data.get("difficulty", "medium"),
         "visibility": data.get("visibility", "public"),
         "time_limit": data.get("time_limit", 0),
+        "poll_time":  data.get("poll_time", 30),   # Poll savol vaqti (soniya)
         "passing_score": data.get("passing_score", 60),
         "max_attempts": data.get("max_attempts", 0),
         "questions": data.get("questions", []),
@@ -115,15 +103,6 @@ def get_public_tests(limit: int = 100) -> list:
     return docs[:limit]
 
 
-def get_tests_by_category(category: str, limit: int = 50) -> list:
-    docs = [d.to_dict() for d in
-            get_db().collection("tests")
-            .where("category", "==", category).limit(100).stream()]
-    docs = [d for d in docs if d.get("is_active", True) and d.get("visibility") == "public"]
-    docs.sort(key=lambda x: _safe_dt(x.get("created_at")), reverse=True)
-    return docs[:limit]
-
-
 def get_my_tests(creator_id: int) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("tests")
@@ -139,9 +118,7 @@ def delete_test(tid: str):
     })
 
 
-# ═══════════════════════════════════════════════════════════
-# RESULTS
-# ═══════════════════════════════════════════════════════════
+# ── RESULTS ──────────────────────────────────────────────
 
 def save_result(user_id: int, test_id: str, res: dict) -> str:
     db      = get_db()
@@ -170,10 +147,10 @@ def save_result(user_id: int, test_id: str, res: dict) -> str:
     return rid
 
 
-def get_user_results(user_id: int, limit: int = 20) -> list:
+def get_user_results(user_id: int, limit: int = 50) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("results")
-            .where("user_id", "==", user_id).limit(100).stream()]
+            .where("user_id", "==", user_id).limit(200).stream()]
     docs.sort(key=lambda x: _safe_dt(x.get("completed_at")), reverse=True)
     return docs[:limit]
 
@@ -226,9 +203,7 @@ def _update_leaderboard(uid: int, name: str, tid: str, pct: float):
         })
 
 
-# ═══════════════════════════════════════════════════════════
-# LEADERBOARD
-# ═══════════════════════════════════════════════════════════
+# ── LEADERBOARD ───────────────────────────────────────────
 
 def get_leaderboard_by_test(tid: str, limit: int = 10) -> list:
     docs = [d.to_dict() for d in
