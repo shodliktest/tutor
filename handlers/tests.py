@@ -403,3 +403,40 @@ async def my_results_webapp(callback: CallbackQuery):
         "📜 <b>NATIJALARIM (Web oyna)</b>\n\nQuyidagi tugmani bosing:",
         reply_markup=history_keyboard(uid)
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# 7. WEB TEST NATIJASI — GitHub Pages dan kelgan ma'lumot
+# ═══════════════════════════════════════════════════════════
+
+@router.message(F.web_app_data)
+async def web_app_data_handler(message: Message):
+    """
+    GitHub Pages test.html test tugatganda WebApp.sendData() yuboradi.
+    Bot shu xabarni qabul qilib foydalanuvchiga natija + tugmalar yuboradi.
+    """
+    import json
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        return
+
+    if data.get("type") != "test_result":
+        return
+
+    score     = data.get("score", 0)
+    passed    = data.get("passed", False)
+    result_id = data.get("result_id", "")
+    test_id   = data.get("test_id", "")
+    uid       = message.from_user.id
+
+    emoji = "✅" if passed else "❌"
+    text  = (
+        f"<b>{emoji} WEB TEST YAKUNLANDI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📊 Natija: <b>{score}%</b>\n"
+        f"{'🎉 Tabriklaymiz! Siz o\'tdingiz!' if passed else '💪 Yana urinib ko\'ring!'}"
+    )
+    await message.answer(
+        text,
+        reply_markup=result_keyboard(test_id, result_id, uid)
+    )
