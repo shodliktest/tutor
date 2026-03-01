@@ -69,11 +69,14 @@ def test_info_keyboard(test_id: str) -> InlineKeyboardMarkup:
 def result_keyboard(test_id: str, result_id: str) -> InlineKeyboardMarkup:
     """Test yakunlanganda — tahlil tugmasi bilan"""
     builder = InlineKeyboardBuilder()
-    # Asosiy — Batafsil tahlil (modal oyna)
+    # Asosiy — Batafsil tahlil
     builder.row(InlineKeyboardButton(
         text="🔍 Batafsil tahlil",
         callback_data=f"analysis_{result_id}"
     ))
+    builder.row(
+        InlineKeyboardButton(text="📄 TXT yuklab olish", callback_data=f"dl_result_{result_id}"),
+    )
     builder.row(
         InlineKeyboardButton(text="🔄 Qaytadan",  callback_data=f"start_test_{test_id}"),
         InlineKeyboardButton(text="📊 Poll rejim", callback_data=f"start_poll_{test_id}"),
