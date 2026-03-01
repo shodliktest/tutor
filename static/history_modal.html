@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="uz" data-theme="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Natijalar Tarixi</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Unbounded:wght@700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#EEF0FF;--card:#fff;--text:#1a1a2e;--text2:#6b7280;--text3:#9ca3af;
+  --acc:#6C3FE8;--acc2:#C040C8;--border:rgba(108,63,232,.1);
+  --green:#059669;--red:#ef4444;--yellow:#d97706;
+  --grad:linear-gradient(135deg,#6C3FE8,#C040C8);
+  --shadow:0 2px 10px rgba(108,63,232,.07);
+}
+[data-theme=dark]{
+  --bg:#0d0820;--card:#140d28;--text:#e8e0ff;--text2:#9ca3af;--text3:#6b7280;
+  --border:rgba(108,63,232,.2);
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;background:var(--bg);color:var(--text)}
+
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;height:52px;z-index:500;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;background:var(--card);border-bottom:1px solid var(--border);
+  box-shadow:0 1px 8px rgba(108,63,232,.06)}
+.logo{font-family:'Unbounded',sans-serif;font-size:.95rem;font-weight:900;
+  background:var(--grad);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text}
+.nav-r{display:flex;align-items:center;gap:.4rem}
+.ibtn{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);
+  background:var(--card);cursor:pointer;font-size:.88rem;
+  display:flex;align-items:center;justify-content:center;transition:all .2s}
+.ibtn:hover{background:rgba(108,63,232,.08)}
+
+/* ── PAGE ── */
+.page{padding:62px 1rem 3rem;max-width:640px;margin:0 auto}
+.pg-hdr{margin-bottom:1rem}
+.pg-hdr h1{font-family:'Unbounded',sans-serif;font-size:1rem;font-weight:900;margin-bottom:.15rem}
+.pg-hdr p{font-size:.73rem;color:var(--text3)}
+
+/* ── STATS ── */
+.sbar{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem}
+.sb{background:var(--card);border-radius:12px;padding:.65rem .35rem;text-align:center;
+  border:1px solid var(--border);box-shadow:var(--shadow)}
+.sv{font-family:'Unbounded',sans-serif;font-size:.95rem;font-weight:900;
+  background:var(--grad);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text}
+.sl{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-top:.06rem}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:.3rem;overflow-x:auto;padding-bottom:.3rem;margin-bottom:.85rem}
+.filters::-webkit-scrollbar{display:none}
+.ftag{padding:.3rem .7rem;border-radius:99px;font-size:.72rem;font-weight:700;
+  cursor:pointer;border:1.5px solid var(--border);background:var(--card);
+  color:var(--text2);transition:all .2s;white-space:nowrap;font-family:inherit;flex-shrink:0}
+.ftag.on{background:var(--grad);color:#fff;border-color:transparent;
+  box-shadow:0 3px 10px rgba(108,63,232,.25)}
+
+/* ── DATE ACCORDION ── */
+.dgrp{margin-bottom:.7rem}
+.dhdr{display:flex;align-items:center;justify-content:space-between;
+  padding:.78rem 1rem;border-radius:13px;cursor:pointer;
+  background:var(--card);border:1.5px solid var(--border);transition:all .22s;user-select:none}
+.dhdr:hover{border-color:rgba(108,63,232,.3)}
+.dhdr.open{border-color:rgba(108,63,232,.35);background:rgba(108,63,232,.03);
+  border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent}
+.dh-l{display:flex;align-items:center;gap:.55rem}
+.dh-ico{width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:.88rem}
+.dh-date{font-size:.85rem;font-weight:800}
+.dh-info{font-size:.66rem;color:var(--text3);font-weight:600;margin-top:.05rem}
+.dh-r{display:flex;align-items:center;gap:.38rem}
+.dh-cnt{font-size:.68rem;font-weight:700;color:var(--acc);
+  background:rgba(108,63,232,.08);border-radius:99px;padding:.12rem .42rem}
+.dh-arr{font-size:.68rem;color:var(--text3);transition:transform .22s}
+.dhdr.open .dh-arr{transform:rotate(180deg)}
+
+.ditems{display:none;flex-direction:column;gap:.35rem;
+  padding:.45rem .45rem .5rem;
+  background:var(--card);
+  border:1.5px solid rgba(108,63,232,.35);border-top:none;
+  border-bottom-left-radius:13px;border-bottom-right-radius:13px}
+.ditems.open{display:flex}
+
+/* ── RESULT CARD ── */
+.rc{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.68rem .78rem;border-radius:10px;
+  background:var(--bg);border:1px solid var(--border);transition:all .2s;cursor:pointer}
+.rc:hover{border-color:rgba(108,63,232,.28);background:rgba(108,63,232,.025)}
+.rc-l{flex:1;min-width:0}
+.rc-nm{font-size:.82rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:.12rem}
+.rc-meta{font-size:.66rem;color:var(--text3);display:flex;gap:.38rem;flex-wrap:wrap}
+.rc-r{display:flex;flex-direction:column;align-items:flex-end;gap:.22rem;flex-shrink:0}
+.rc-pct{font-family:'Unbounded',sans-serif;font-size:.95rem;font-weight:900}
+.sg{color:var(--green)}.sa{color:var(--yellow)}.sr{color:var(--red)}
+.rc-frac{font-size:.6rem;color:var(--text3);font-weight:600}
+.rc-mode{font-size:.6rem;padding:.1rem .35rem;border-radius:5px;font-weight:700;
+  background:rgba(108,63,232,.08);color:var(--acc)}
+
+/* ── DETAIL MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);
+  z-index:900;align-items:flex-end;justify-content:center;padding-bottom:0}
+.modal-bg.open{display:flex;animation:fadeIn .2s ease}
+.modal-box{background:var(--card);border-radius:20px 20px 0 0;
+  width:100%;max-width:640px;max-height:90vh;
+  display:flex;flex-direction:column;
+  box-shadow:0 -8px 40px rgba(0,0,0,.2)}
+.modal-hdr{padding:.9rem 1.1rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-hdr-title{font-size:.9rem;font-weight:900;font-family:'Unbounded',sans-serif}
+.modal-close{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);
+  background:transparent;cursor:pointer;font-size:.85rem;
+  display:flex;align-items:center;justify-content:center}
+.modal-body{overflow-y:auto;padding:.9rem 1.1rem 1.5rem;flex:1}
+
+/* Modal hero */
+.m-hero{background:var(--grad);border-radius:14px;padding:1.1rem;
+  text-align:center;color:#fff;margin-bottom:.9rem}
+.m-pct{font-family:'Unbounded',sans-serif;font-size:2.2rem;font-weight:900;line-height:1}
+.m-label{font-size:.78rem;opacity:.85;margin-top:.25rem;font-weight:600}
+.m-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;
+  border-radius:99px;border:1.5px solid rgba(255,255,255,.3);font-size:.72rem;font-weight:800;margin-top:.55rem}
+
+.m-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:.85rem}
+.m-stat{background:rgba(108,63,232,.05);border:1px solid var(--border);border-radius:11px;
+  padding:.6rem .4rem;text-align:center}
+.m-sv{font-size:.92rem;font-weight:900;font-family:'Unbounded',sans-serif;
+  background:var(--grad);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text}
+.m-sl{font-size:.57rem;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-top:.1rem}
+
+/* Analysis items */
+.a-title{font-size:.8rem;font-weight:800;margin:.1rem 0 .6rem;color:var(--text)}
+.a-item{border-radius:9px;padding:.62rem .78rem;border:1.5px solid transparent;
+  display:flex;align-items:flex-start;gap:.55rem;margin-bottom:.38rem}
+.a-item.ok{background:rgba(5,150,105,.06);border-color:rgba(5,150,105,.15)}
+.a-item.err{background:rgba(239,68,68,.05);border-color:rgba(239,68,68,.12)}
+.a-num{width:22px;height:22px;border-radius:5px;flex-shrink:0;
+  font-size:.68rem;font-weight:900;font-family:'Unbounded',sans-serif;
+  display:flex;align-items:center;justify-content:center}
+.a-item.ok .a-num{background:rgba(5,150,105,.12);color:var(--green)}
+.a-item.err .a-num{background:rgba(239,68,68,.1);color:var(--red)}
+.a-info{flex:1;min-width:0}
+.a-q{font-size:.78rem;font-weight:700;margin-bottom:.18rem;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical}
+.a-ans{font-size:.7rem;color:var(--text2)}
+.a-expl{font-size:.67rem;color:var(--text3);font-style:italic;margin-top:.14rem}
+
+/* ── EMPTY / LOADER ── */
+.sp{width:26px;height:26px;border:2.5px solid rgba(108,63,232,.12);border-top-color:var(--acc);
+  border-radius:50%;animation:spin .7s linear infinite;margin:2.5rem auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.emp{text-align:center;padding:2.5rem 1rem}
+.emp-ico{font-size:2.2rem;margin-bottom:.5rem}
+.emp-t{font-size:.88rem;font-weight:700;margin-bottom:.22rem}
+.emp-p{font-size:.73rem;color:var(--text3)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo">📜 Tarix</div>
+  <div class="nav-r">
+    <button class="ibtn" id="theme-btn">🌙</button>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="pg-hdr">
+    <h1>Natijalar Tarixi</h1>
+    <p>Barcha ishlangan testlar kunlar tartibida</p>
+  </div>
+
+  <div class="sbar">
+    <div class="sb"><div class="sv" id="st-all">0</div><div class="sl">Jami</div></div>
+    <div class="sb"><div class="sv" id="st-pass">0</div><div class="sl">O'tdi</div></div>
+    <div class="sb"><div class="sv" id="st-avg">—</div><div class="sl">O'rtacha</div></div>
+    <div class="sb"><div class="sv" id="st-best">—</div><div class="sl">Eng yaxshi</div></div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="ftag on" onclick="setFilter('all',this)">🗂 Barchasi</button>
+  </div>
+
+  <div id="content"><div class="sp"></div></div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-bg" id="detail-modal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title" id="modal-title">Tahlil</div>
+      <button class="modal-close" onclick="closeDetailModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════
+   THEME
+═══════════════════════════════════ */
+const TH={
+  get(){return localStorage.getItem('tp_theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')},
+  set(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('tp_theme',t);
+    const b=document.getElementById('theme-btn');if(b)b.textContent=t==='dark'?'☀️':'🌙';},
+  toggle(){this.set(this.get()==='dark'?'light':'dark')}
+};
+TH.set(TH.get());
+document.getElementById('theme-btn').onclick=()=>TH.toggle();
+
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+let ALL = [];
+let CUR = 'all';
+
+/* ═══════════════════════════════════
+   INIT — Streamlit dan
+═══════════════════════════════════ */
+function initHistory(results) {
+  ALL = results || [];
+  buildStats(ALL);
+  buildFilters(ALL);
+  render(ALL);
+}
+
+function buildStats(results) {
+  const total = results.length;
+  const passed = results.filter(r => r.passed).length;
+  const avgs = results.map(r => r.percentage || r.score || 0);
+  const avg = avgs.length ? Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length) : 0;
+  const best = avgs.length ? Math.max(...avgs) : 0;
+
+  document.getElementById('st-all').textContent  = total;
+  document.getElementById('st-pass').textContent = passed;
+  document.getElementById('st-avg').textContent  = avg ? avg+'%' : '—';
+  document.getElementById('st-best').textContent = best ? best+'%' : '—';
+}
+
+function buildFilters(results) {
+  const cats = [...new Set(results.map(r => r.category || r.subject || 'other'))];
+  const fr = document.getElementById('filters');
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'ftag';
+    btn.textContent = (ICONS[c]||'📚') + ' ' + capitalize(c);
+    btn.onclick = () => setFilter(c, btn);
+    fr.appendChild(btn);
+  });
+}
+
+const ICONS = {english:'🇬🇧',arabic:'🕌',russian:'🇷🇺',turkish:'🇹🇷',
+  math:'🧮',it:'💻',science:'🔬',religion:'📖',other:'📚'};
+
+window.setFilter = (f, el) => {
+  CUR = f;
+  document.querySelectorAll('.ftag').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  render(ALL);
+};
+
+/* ═══════════════════════════════════
+   RENDER LIST
+═══════════════════════════════════ */
+function render(results) {
+  const wrap = document.getElementById('content');
+  const list = CUR === 'all' ? results
+    : results.filter(r => (r.category||r.subject||'other') === CUR);
+
+  if (!list.length) {
+    wrap.innerHTML = `<div class="emp">
+      <div class="emp-ico">📭</div>
+      <div class="emp-t">Natija topilmadi</div>
+      <div class="emp-p">Bu bo'lim bo'yicha hali test ishlanmagan</div>
+    </div>`;
+    return;
+  }
+
+  // Group by day
+  const groups = {};
+  list.forEach(r => {
+    const k = dayKey(r.completed_at || r.completedAt);
+    if (!groups[k]) groups[k] = { label: dayLabel(r.completed_at || r.completedAt), items: [] };
+    groups[k].items.push(r);
+  });
+  const keys = Object.keys(groups).sort((a,b) => b-a);
+
+  wrap.innerHTML = '';
+  keys.forEach((k, gi) => {
+    const g = groups[k];
+    const isFirst = gi === 0;
+    const avg = Math.round(g.items.reduce((s,r) => s+(r.percentage||r.score||0),0)/g.items.length);
+
+    const gEl = document.createElement('div');
+    gEl.className = 'dgrp';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'dhdr' + (isFirst ? ' open' : '');
+    hdr.innerHTML = `
+      <div class="dh-l">
+        <div class="dh-ico">📅</div>
+        <div>
+          <div class="dh-date">${g.label}</div>
+          <div class="dh-info">O'rtacha: ${avg}% · ${g.items.length} ta test</div>
+        </div>
+      </div>
+      <div class="dh-r">
+        <span class="dh-cnt">${g.items.length}</span>
+        <span class="dh-arr">▼</span>
+      </div>`;
+
+    const items = document.createElement('div');
+    items.className = 'ditems' + (isFirst ? ' open' : '');
+
+    g.items.forEach(r => {
+      const pct = r.percentage || r.score || 0;
+      const cls = pct >= 80 ? 'sg' : pct >= 50 ? 'sa' : 'sr';
+      const mode = r.mode === 'poll' ? '📊' : r.mode === 'web' ? '🌐' : '▶️';
+      const card = document.createElement('div');
+      card.className = 'rc';
+      card.innerHTML = `
+        <div class="rc-l">
+          <div class="rc-nm">${esc(r.test_title || r.testTitle || 'Test')}</div>
+          <div class="rc-meta">
+            <span>📁 ${capitalize(r.category || r.subject || '—')}</span>
+            <span>🕐 ${timeStr(r.completed_at || r.completedAt)}</span>
+            <span>📝 ${r.total_questions || r.total || 0} savol</span>
+            ${r.time_spent ? `<span>⏱ ${elapsed2str(r.time_spent||r.elapsed||0)}</span>` : ''}
+          </div>
+        </div>
+        <div class="rc-r">
+          <div class="rc-pct ${cls}">${pct}%</div>
+          <div class="rc-frac">${r.correct_count||r.correct||0}/${r.total_questions||r.total||0}</div>
+          <span class="rc-mode">${mode} ${r.mode||'inline'}</span>
+        </div>`;
+      card.onclick = () => openDetail(r);
+      items.appendChild(card);
+    });
+
+    hdr.onclick = () => {
+      const open = hdr.classList.contains('open');
+      hdr.classList.toggle('open', !open);
+      items.classList.toggle('open', !open);
+    };
+
+    gEl.appendChild(hdr);
+    gEl.appendChild(items);
+    wrap.appendChild(gEl);
+  });
+}
+
+/* ═══════════════════════════════════
+   DETAIL MODAL
+═══════════════════════════════════ */
+function openDetail(r) {
+  const pct    = r.percentage || r.score || 0;
+  const passed = r.passed || pct >= (r.passing_score || 60);
+  const correct = r.correct_count || r.correct || 0;
+  const total   = r.total_questions || r.total || 0;
+  const wrong   = total - correct;
+  const elapsed = r.time_spent || r.elapsed || 0;
+
+  document.getElementById('modal-title').textContent = r.test_title || r.testTitle || 'Test';
+
+  let html = `
+    <div class="m-hero">
+      <div style="font-size:2rem;margin-bottom:.4rem">${passed?'🏆':'😔'}</div>
+      <div class="m-pct">${pct}%</div>
+      <div class="m-label">${passed ? 'Muvaffaqiyatli o\'tdingiz!' : 'Testdan o\'tolmadingiz'}</div>
+      <div class="m-badge">${passed ? '✅ O\'tdi' : '❌ Yiqildi'}</div>
+    </div>
+
+    <div class="m-stats">
+      <div class="m-stat">
+        <div class="m-sv" style="color:var(--green);background:none;-webkit-text-fill-color:var(--green)">${correct}</div>
+        <div class="m-sl">✅ To'g'ri</div>
+      </div>
+      <div class="m-stat">
+        <div class="m-sv" style="color:var(--red);background:none;-webkit-text-fill-color:var(--red)">${wrong}</div>
+        <div class="m-sl">❌ Xato</div>
+      </div>
+      <div class="m-stat">
+        <div class="m-sv">${elapsed2str(elapsed)}</div>
+        <div class="m-sl">⏱ Vaqt</div>
+      </div>
+    </div>`;
+
+  // Detailed analysis
+  const detailed = r.detailed_results || [];
+  if (detailed.length) {
+    html += `<div class="a-title">🔍 Batafsil tahlil</div>`;
+    detailed.forEach((d, i) => {
+      const isOk = d.is_correct || d.isCorrect;
+      html += `<div class="a-item ${isOk?'ok':'err'}">
+        <div class="a-num">${i+1}</div>
+        <div class="a-info">
+          <div class="a-q">${esc(d.question_text || d.question || `${i+1}-savol`)}</div>
+          ${!isOk ? `<div class="a-ans">
+            👤 Siz: <b>${esc(String(d.user_answer||'—'))}</b> &nbsp;·&nbsp;
+            🎯 To'g'ri: <b>${esc(String(d.correct_answer||'?'))}</b>
+          </div>` : `<div class="a-ans">✔️ <b>${esc(String(d.correct_answer||''))}</b></div>`}
+          ${d.explanation && !['Izoh kiritilmagan.','Izoh yo\'q'].includes(d.explanation) ?
+            `<div class="a-expl">💡 ${esc(d.explanation)}</div>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('detail-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+window.closeDetailModal = function() {
+  document.getElementById('detail-modal').classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+window.closeModal = function(e) {
+  if (e.target.id === 'detail-modal') closeDetailModal();
+};
+
+/* ═══════════════════════════════════
+   TIME HELPERS
+═══════════════════════════════════ */
+function getTs(ts) {
+  if (!ts) return null;
+  try {
+    if (typeof ts === 'string') return new Date(ts);
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return new Date(ts);
+  } catch { return null; }
+}
+function dayKey(ts) {
+  const d = getTs(ts); if (!d) return '0';
+  return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate() + '';
+}
+function dayLabel(ts) {
+  const d = getTs(ts); if (!d) return '—';
+  const t = new Date(), y = new Date(t);
+  y.setDate(y.getDate()-1);
+  if (d.toDateString()===t.toDateString()) return 'Bugun 📅';
+  if (d.toDateString()===y.toDateString()) return 'Kecha';
+  return d.toLocaleDateString('uz-UZ', {day:'numeric', month:'long', year:'numeric'});
+}
+function timeStr(ts) {
+  const d = getTs(ts); if (!d) return '';
+  return d.toLocaleTimeString('uz-UZ', {hour:'2-digit', minute:'2-digit'});
+}
+function elapsed2str(s) {
+  s = s||0; return Math.floor(s/60) + 'd ' + String(s%60).padStart(2,'0') + 's';
+}
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ═══════════════════════════════════
+   STREAMLIT BRIDGE
+═══════════════════════════════════ */
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'history:init') {
+    initHistory(e.data.results);
+  }
+});
+
+function sendToStreamlit(data) {
+  try {
+    window.parent.postMessage({ isStreamlitMessage: true, type: 'streamlit:setComponentValue', value: data }, '*');
+  } catch(e) {}
+}
+sendToStreamlit({ type: 'ready' });
+</script>
+</body>
+</html>
