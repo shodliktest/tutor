@@ -68,6 +68,9 @@ async def tests_menu(message: Message, state: FSMContext):
     if await _check_blocked(message.from_user.id):
         return await message.answer("🚫 Siz bloklangansiz.")
     await state.clear()
+    # Kalit xabarni o'chirish
+    from handlers.create_test import clear_key_msg
+    await clear_key_msg(message.bot, message.from_user.id, message.chat.id)
     await send_categories_menu(message)
 
 

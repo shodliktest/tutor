@@ -246,7 +246,7 @@ async def _show_result_card(callback: CallbackQuery, rid: str):
 
 @router.callback_query(F.data.startswith("analysis_"))
 async def analysis_modal(callback: CallbackQuery):
-    """Tahlilni modal alert oyna orqali ko'rsatish"""
+    """Tahlilni modal-uslub oynada ko'rsatish — bitta chiroyli xabar"""
     rid = callback.data[9:]
     from firebase.db import get_result_by_id
     res = get_result_by_id(rid)
@@ -265,35 +265,51 @@ async def analysis_modal(callback: CallbackQuery):
             show_alert=True
         )
 
-    # Modal uchun qisqa versiya (200 belgi limit)
-    # Alohida sahifali tahlil xabar sifatida yuboramiz
     total   = len(detailed)
     correct = sum(1 for d in detailed if d.get("is_correct"))
     wrong   = total - correct
+    title   = test.get("title", "Test").upper() if test else "TEST"
+    pct     = res.get("percentage", 0)
+    passed  = res.get("passed", False)
 
-    # Modal oynada umumiy ko'rsatkich
-    summary = (
-        f"📊 BATAFSIL TAHLIL\n"
-        f"{'─'*25}\n"
+    # ── 1. MODAL POPUP (show_alert) — qisqa xulosa ──────────
+    alert_text = (
+        f"{'🏆' if passed else '❌'} {title}\n"
+        f"{'━'*20}\n"
+        f"📊 Natija: {pct}%\n"
         f"✅ To'g'ri: {correct}/{total}\n"
-        f"❌ Xato: {wrong}/{total}\n"
-        f"{'─'*25}\n"
-        f"Har savol tahlili quyida yuboriladi ⬇️"
+        f"❌ Xato:   {wrong}/{total}\n"
+        f"{'━'*20}\n"
+        f"{'🎉 MUVAFFAQIYATLI!' if passed else '😔 YIQILDINGIZ'}\n"
+        f"↓ Batafsil tahlil quyida"
     )
-    await callback.answer(summary, show_alert=True)
+    await callback.answer(alert_text, show_alert=True)
+    STATUS    = "🏆 MUVAFFAQIYATLI" if passed else "❌ YIQILDI"
+    bar_full  = "🟩"
+    bar_empty = "🟥"
+    bar_len   = 10
+    filled    = round(pct / 100 * bar_len)
+    bar       = bar_full * filled + bar_empty * (bar_len - filled)
 
-    # Har bir savol uchun alohida chiroyli kartochka
-    title = test.get("title", "Test").upper() if test else "TEST"
+    # ── HEADER (modal uslubi) ──────────────────────
+    header = (
+        f"╔══════════════════════╗\n"
+        f"║  📊 BATAFSIL TAHLIL  ║\n"
+        f"╚══════════════════════╝\n\n"
+        f"📝 <b>{title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{bar}  <b>{pct}%</b>\n"
+        f"✅ To'g'ri: <b>{correct}</b>   ❌ Xato: <b>{wrong}</b>   📋 Jami: <b>{total}</b>\n"
+        f"<b>{STATUS}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
 
-    # Barcha tahlilni bitta xabarga yig'amiz (4000 dan oshsa bo'lib yuboramiz)
-    chunks = []
-    header = f"📝 <b>{title} — BATAFSIL TAHLIL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    current = header
-
+    # ── Savollar tahlili ──────────────────────────
+    body = ""
     for d in detailed:
         i     = d.get("question_index", 0)
         is_c  = d.get("is_correct", False)
-        u_ans = d.get("user_answer") or "Belgilanmagan"
+        u_ans = d.get("user_answer") or "—"
         c_ans = d.get("correct_answer", "?")
         q_obj = questions[i] if i < len(questions) else {}
         q_txt = q_obj.get("question", q_obj.get("text", f"{i+1}-savol"))
@@ -301,44 +317,142 @@ async def analysis_modal(callback: CallbackQuery):
         pts   = d.get("earned_points", 0)
         max_p = d.get("max_points", 1)
 
-        # Chiroyli kartochka
-        block = (
-            f"{'✅' if is_c else '❌'} <b>Savol {i+1}</b> "
-            f"[{pts}/{max_p} ball]\n"
-            f"<i>{q_txt[:100]}{'...' if len(q_txt) > 100 else ''}</i>\n"
-        )
+        icon  = "✅" if is_c else "❌"
+        line  = f"{icon} <b>{i+1}.</b> <i>{q_txt[:90]}{'...' if len(q_txt)>90 else ''}</i>\n"
+
         if not is_c:
-            block += (
-                f"  👤 Siz: <code>{str(u_ans)[:50]}</code>\n"
-                f"  🎯 To'g'ri: <code>{str(c_ans)[:50]}</code>\n"
+            line += (
+                f"   👤 Siz: <code>{str(u_ans)[:45]}</code>\n"
+                f"   🎯 To'g'ri: <code>{str(c_ans)[:45]}</code>\n"
             )
         else:
-            block += f"  ✔️ Javob: <code>{str(c_ans)[:50]}</code>\n"
+            line += f"   ✔️ <code>{str(c_ans)[:50]}</code>\n"
 
-        if expl and expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan", ""):
-            block += f"  💡 <i>{expl[:80]}{'...' if len(expl) > 80 else ''}</i>\n"
-        block += "\n"
+        clean_expl = (expl or "").strip()
+        if clean_expl and clean_expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan"):
+            line += f"   💡 <i>{clean_expl[:75]}{'...' if len(clean_expl)>75 else ''}</i>\n"
 
-        if len(current) + len(block) > 3800:
+        line += f"   📌 Ball: {pts}/{max_p}\n\n"
+        body += line
+
+    close_builder = InlineKeyboardBuilder()
+    close_builder.row(
+        InlineKeyboardButton(text="🔄 Qaytadan ishlash", callback_data=f"start_test_{res.get('test_id')}"),
+        InlineKeyboardButton(text="⬅️ Natijaga qaytish", callback_data=f"res_detail_{rid}"),
+    )
+    close_builder.row(
+        InlineKeyboardButton(text="🚮 Tahlilni yopish", callback_data=f"close_analysis"),
+    )
+
+    # Agar juda uzun bo'lsa — bo'lib yuboramiz
+    full = header + body
+    max_chunk = 3800
+    if len(full) <= max_chunk:
+        await callback.message.answer(full, reply_markup=close_builder.as_markup())
+    else:
+        chunks = []
+        current = header
+        for line in body.split("\n\n"):
+            block = line + "\n\n"
+            if len(current) + len(block) > max_chunk:
+                chunks.append(current)
+                current = ""
+            current += block
+        if current.strip():
             chunks.append(current)
-            current = ""
-        current += block
 
-    if current.strip():
-        chunks.append(current)
-
-    # Oxirgi chunk ga qaytish tugmasi qo'shamiz
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="⬅️ Natijaga qaytish", callback_data=f"res_detail_{rid}"))
-
-    for idx, chunk in enumerate(chunks):
-        try:
+        for idx, chunk in enumerate(chunks):
             if idx == len(chunks) - 1:
-                await callback.message.answer(chunk, reply_markup=builder.as_markup())
+                await callback.message.answer(chunk, reply_markup=close_builder.as_markup())
             else:
                 await callback.message.answer(chunk)
-        except Exception as e:
-            log.error(f"Chunk yuborishda xato: {e}")
+
+
+@router.callback_query(F.data == "close_analysis")
+async def close_analysis(callback: CallbackQuery):
+    """Tahlil xabarini o'chirish"""
+    await callback.answer("🚮 Tahlil yopildi")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("dl_result_"))
+async def download_result_txt(callback: CallbackQuery):
+    """Test natijasini TXT formatda yuklab olish — creator info + vaqt"""
+    await callback.answer("⏳ TXT tayyorlanmoqda...")
+    rid = callback.data[10:]
+    from firebase.db import get_result_by_id
+    import datetime as _dt
+    res = get_result_by_id(rid)
+    if not res:
+        return await callback.answer("❌ Natija topilmadi.", show_alert=True)
+
+    test      = get_test(res.get("test_id", ""))
+    detailed  = res.get("detailed_results", [])
+    questions = test.get("questions", []) if test else []
+    user      = callback.from_user
+    bot_info  = await callback.bot.me()
+
+    now  = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    uname  = f"@{user.username}" if user.username else f"id:{user.id}"
+    ufull  = user.full_name or user.first_name or ""
+    bname  = bot_info.username if bot_info else "bot"
+
+    title = test.get("title", "Test") if test else "Test"
+    pct   = res.get("percentage", 0)
+    passed = res.get("passed", False)
+    correct = res.get("correct_count", 0)
+    wrong   = res.get("wrong_count", 0)
+    total   = len(detailed) or correct + wrong
+
+    lines = [
+        f"# ═══════════════════════════════════",
+        f"# TEST NATIJASI",
+        f"# ═══════════════════════════════════",
+        f"# Foydalanuvchi: {ufull} {uname}",
+        f"# Bot: @{bname}",
+        f"# Yuklab olindi: {now}",
+        f"# ─────────────────────────────────",
+        f"# Test: {title}",
+        f"# Natija: {pct}%  {'✓ MUVAFFAQIYATLI' if passed else '✗ YIQILDI'}",
+        f"# To'g'ri: {correct}/{total}  |  Xato: {wrong}/{total}",
+        f"# ═══════════════════════════════════",
+        "",
+    ]
+
+    for d in detailed:
+        i     = d.get("question_index", 0)
+        is_c  = d.get("is_correct", False)
+        u_ans = d.get("user_answer") or "—"
+        c_ans = d.get("correct_answer", "?")
+        q_obj = questions[i] if i < len(questions) else {}
+        q_txt = q_obj.get("question", q_obj.get("text", f"{i+1}-savol"))
+        expl  = q_obj.get("explanation", "")
+
+        lines.append(f"{'✓' if is_c else '✗'} {i+1}. {q_txt}")
+        if not is_c:
+            lines.append(f"   Siz: {u_ans}")
+            lines.append(f"   To'g'ri: {c_ans}")
+        else:
+            lines.append(f"   Javob: {c_ans}")
+        clean_e = (expl or "").strip()
+        if clean_e and clean_e not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan"):
+            lines.append(f"   Izoh: {clean_e}")
+        lines.append("")
+
+    txt = "\n".join(lines)
+    fname = f"Natija_{title[:20]}_{now[:10]}.txt"
+    doc = BufferedInputFile(txt.encode("utf-8"), filename=fname)
+    await callback.message.answer_document(
+        doc,
+        caption=(
+            f"📄 <b>{title}</b> — natija\n"
+            f"👤 {ufull} {uname}\n"
+            f"📊 {pct}% | {'✅ O\'tdi' if passed else '❌ Yiqildi'}"
+        )
+    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -479,7 +593,7 @@ async def my_test_to_txt(callback: CallbackQuery):
     if not test:
         return await callback.message.answer("❌ Test topilmadi.")
 
-    txt = _test_to_txt(test)
+    txt = _test_to_txt(test, user=callback.from_user, bot_info=await callback.bot.me())
     doc = BufferedInputFile(txt.encode("utf-8"), filename=f"{test.get('title', tid)}.txt")
     await callback.message.answer_document(
         doc,
@@ -530,19 +644,29 @@ async def go_tests(callback: CallbackQuery):
 
 # ── YORDAMCHI: Test → TXT ─────────────────────────────────
 
-def _test_to_txt(test: dict) -> str:
-    """Testni standart TXT formatga o'tkazish"""
+def _test_to_txt(test: dict, user=None, bot_info=None) -> str:
+    """Testni standart TXT formatga o'tkazish (user info + vaqt avtomatik)"""
+    import datetime as _dt
     lines = []
     lines.append(f"# {test.get('title', 'Test')}")
     lines.append(f"# Fan: {test.get('category', '')}")
-    lines.append(f"# Qiyinlik: {test.get('difficulty', '')}")
-    lines.append(f"# O'tish foizi: {test.get('passing_score', 60)}%")
     lines.append(f"# Kod: {test.get('test_id', '')}")
+    # Yaratuvchi ma'lumotlari
+    if user:
+        uname  = f"@{user.username}" if getattr(user, "username", None) else ""
+        uname  = uname or f"id:{getattr(user, 'id', '')}"
+        ufull  = getattr(user, "full_name", None) or getattr(user, "first_name", "")
+        lines.append(f"# Yaratuvchi: {ufull} {uname}".strip())
+    if bot_info:
+        bname  = getattr(bot_info, "username", "")
+        lines.append(f"# Bot: @{bname}")
+    now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    lines.append(f"# Yuklab olindi: {now}")
     lines.append("")
 
     for i, q in enumerate(test.get("questions", []), 1):
         t = q.get("type", "multiple_choice")
-        lines.append(f"TYPE: {t}")
+        # TYPE yozilmaydi — sodda ko'rinish uchun
         lines.append(f"{i}. {q.get('question', q.get('text', ''))}")
 
         opts = q.get("options", [])
