@@ -1,6 +1,7 @@
 """
-📚 TEST YECHISH — Inline rejim + WebApp yo'naltiruvchi
+📚 TEST YECHISH — Inline rejim
 Xavfsizlik: Bloklangan foydalanuvchi tekshiriladi
+Modal tahlil tugmasi natijada mavjud
 """
 import time, asyncio, logging, re
 from aiogram import Router, F
@@ -14,10 +15,7 @@ from aiogram.exceptions import TelegramBadRequest
 from firebase.db import get_test, get_public_tests, save_result, get_result_by_id, get_user
 from utils.states import TestSolving
 from utils.scoring import calculate_score, format_result
-from keyboards.keyboards import (
-    main_reply_keyboard, result_keyboard, answer_keyboard,
-    feedback_keyboard, test_webapp_keyboard, history_keyboard
-)
+from keyboards.keyboards import main_reply_keyboard, result_keyboard, answer_keyboard, feedback_keyboard
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -144,10 +142,10 @@ async def view_test(callback: CallbackQuery):
     qs = test.get("questions", [])
     diff_map = {"easy": "🟢 Oson", "medium": "🟡 O'rtacha",
                 "hard": "🔴 Qiyin", "expert": "⚡ Ekspert"}
-    diff   = diff_map.get(test.get("difficulty", ""), "")
+    diff = diff_map.get(test.get("difficulty", ""), "")
     vis_map = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}
-    vis    = vis_map.get(test.get("visibility", ""), "")
-    pt     = test.get("poll_time", 30)
+    vis = vis_map.get(test.get("visibility", ""), "")
+    pt  = test.get("poll_time", 30)
     pt_txt = f"{pt} son/savol" if pt > 0 else "Vaqtsiz"
 
     text = (
@@ -163,8 +161,7 @@ async def view_test(callback: CallbackQuery):
         f"⏱ Poll vaqti: {pt_txt}\n\n"
         f"<i>Qaysi rejimda ishlashni tanlang:</i>\n"
         f"▶️ <b>Inline</b> — har savoldan keyin to'g'ri/noto'g'ri ko'rsatadi\n"
-        f"📊 <b>Poll</b> — native quiz poll (@QuizBot uslubida)\n"
-        f"🌐 <b>Web</b> — brauzer oynasida"
+        f"📊 <b>Poll</b> — native quiz poll (@QuizBot uslubida)"
     )
     from keyboards.keyboards import test_info_keyboard
     try:
@@ -174,33 +171,7 @@ async def view_test(callback: CallbackQuery):
 
 
 # ═══════════════════════════════════════════════════════════
-# 2. WEB TEST BOSHLASH
-# ═══════════════════════════════════════════════════════════
-
-@router.callback_query(F.data.startswith("start_web_"))
-async def start_web_test(callback: CallbackQuery):
-    """WebApp orqali test yechishga yo'naltirish."""
-    await callback.answer()
-    tid  = callback.data[10:]
-    test = get_test(tid)
-    if not test:
-        return await callback.message.answer("❌ Test topilmadi.")
-
-    uid  = callback.from_user.id
-    text = (
-        f"<b>🌐 WEB TEST</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📝 <b>{test.get('title')}</b>\n"
-        f"📋 {len(test.get('questions', []))} ta savol\n\n"
-        f"Quyidagi tugmani bosing — test brauzer oynasida ochiladi:"
-    )
-    try:
-        await callback.message.edit_text(text, reply_markup=test_webapp_keyboard(tid, uid))
-    except TelegramBadRequest:
-        await callback.message.answer(text, reply_markup=test_webapp_keyboard(tid, uid))
-
-
-# ═══════════════════════════════════════════════════════════
-# 3. INLINE TEST BOSHLASH
+# 2. INLINE TEST BOSHLASH
 # ═══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("start_test_"))
@@ -246,7 +217,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
             return
 
     header = f"<b>📝 {title} | {idx+1}/{len(qs)}{time_txt}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    q_text = re.sub(r"^\d+[\.\)]\s*", "", q.get("question", q.get("text", "Savol matni yo'q")).strip())
+    q_text = q.get("question", q.get("text", "Savol matni yo'q"))
     body   = f"<b>{q_text}</b>\n\n"
     letters = []
     for i, opt in enumerate(q.get("options", [])):
@@ -255,7 +226,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
         body  += f"▫️ <b>{letter})</b> <i>{ot}</i>\n"
         letters.append(letter)
 
-    kb   = answer_keyboard(letters)
+    kb = answer_keyboard(letters)
     full = header + body
     if edit and isinstance(event, CallbackQuery):
         try:
@@ -268,7 +239,7 @@ async def _send_question(event, state: FSMContext, edit: bool = False):
 
 
 # ═══════════════════════════════════════════════════════════
-# 4. JAVOB QAYTA ISHLASH — 5 soniya feedback
+# 3. JAVOB QAYTA ISHLASH — 5 soniya feedback
 # ═══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("ans_"), TestSolving.answering)
@@ -297,7 +268,7 @@ async def process_answer(callback: CallbackQuery, state: FSMContext):
 
     is_correct = letter.upper() == c_letter.upper()
     header = f"<b>📝 {title} | {idx+1}/{len(qs)}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    q_text = re.sub(r"^\d+[\.\)]\s*", "", q.get("question", q.get("text", "Savol")).strip())
+    q_text = q.get("question", q.get("text", "Savol"))
     body   = f"<b>{q_text}</b>\n\n"
 
     for i, opt in enumerate(q.get("options", [])):
@@ -355,7 +326,7 @@ async def cancel_test(callback: CallbackQuery, state: FSMContext):
 
 
 # ═══════════════════════════════════════════════════════════
-# 5. TEST YAKUNLASH
+# 4. TEST YAKUNLASH
 # ═══════════════════════════════════════════════════════════
 
 async def _finish_test(event, state: FSMContext, data: dict):
@@ -383,60 +354,7 @@ async def _finish_test(event, state: FSMContext, data: dict):
     except Exception:
         pass
 
-    # user_id uzatamiz — WebApp tugmalari ko'rinadi
     await event.bot.send_message(
         chat_id, text,
-        reply_markup=result_keyboard(test.get("test_id"), rid, uid)
-    )
-
-
-# ═══════════════════════════════════════════════════════════
-# 6. NATIJALARIM (WebApp tarixi tugmasi)
-# ═══════════════════════════════════════════════════════════
-
-@router.callback_query(F.data == "my_results_webapp")
-async def my_results_webapp(callback: CallbackQuery):
-    """Foydalanuvchi 📊 Natijalarim → WebApp tarixi."""
-    await callback.answer()
-    uid = callback.from_user.id
-    await callback.message.answer(
-        "📜 <b>NATIJALARIM (Web oyna)</b>\n\nQuyidagi tugmani bosing:",
-        reply_markup=history_keyboard(uid)
-    )
-
-
-# ═══════════════════════════════════════════════════════════
-# 7. WEB TEST NATIJASI — GitHub Pages dan kelgan ma'lumot
-# ═══════════════════════════════════════════════════════════
-
-@router.message(F.web_app_data)
-async def web_app_data_handler(message: Message):
-    """
-    GitHub Pages test.html test tugatganda WebApp.sendData() yuboradi.
-    Bot shu xabarni qabul qilib foydalanuvchiga natija + tugmalar yuboradi.
-    """
-    import json
-    try:
-        data = json.loads(message.web_app_data.data)
-    except Exception:
-        return
-
-    if data.get("type") != "test_result":
-        return
-
-    score     = data.get("score", 0)
-    passed    = data.get("passed", False)
-    result_id = data.get("result_id", "")
-    test_id   = data.get("test_id", "")
-    uid       = message.from_user.id
-
-    emoji = "✅" if passed else "❌"
-    text  = (
-        f"<b>{emoji} WEB TEST YAKUNLANDI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📊 Natija: <b>{score}%</b>\n"
-        f"{'🎉 Tabriklaymiz! Siz o\'tdingiz!' if passed else '💪 Yana urinib ko\'ring!'}"
-    )
-    await message.answer(
-        text,
-        reply_markup=result_keyboard(test_id, result_id, uid)
+        reply_markup=result_keyboard(test.get("test_id"), rid)
     )
