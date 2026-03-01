@@ -54,7 +54,8 @@ with st.sidebar:
     st.markdown("---")
     menu = st.radio("📋 Menyu", [
         "📊 Dashboard", "👥 Foydalanuvchilar",
-        "📋 Testlar", "📄 Test TXT yuklab olish",
+        "📋 Testlar", "🎮 Test Yechish (Modal)",
+        "📜 Natijalar Tarixi", "📄 Test TXT yuklab olish",
         "🏆 Reyting", "⚙️ Sozlamalar"
     ])
     st.markdown("---")
@@ -241,3 +242,95 @@ client_id = "..."
     st.code("/reply 123456789 Xabaringizni oldim, hal qilindi!", language="text")
     st.json({"Foydalanuvchilar": len(users_data), "Testlar": len(tests_data),
              "Bot": bot_thread.is_alive() if bot_thread else False})
+
+# ─────────────────────────────────────────────────────────
+# 🎮 TEST YECHISH MODAL
+# ─────────────────────────────────────────────────────────
+elif menu == "🎮 Test Yechish (Modal)":
+    st.header("🎮 Test Yechish — Modal Oyna")
+    st.info("Bu yerda foydalanuvchi test kodini kiritib, to'liq interaktiv modal oynada test yecha oladi.")
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        test_id_input = st.text_input("🔑 Test kodi yoki ID:", placeholder="Masalan: ABC123")
+    with col2:
+        st.write("")
+        st.write("")
+        start_btn = st.button("🚀 Boshlash", type="primary")
+
+    if not test_id_input and tests_data:
+        st.subheader("📋 Mavjud testlar")
+        for t in tests_data[:10]:
+            tid   = t.get("test_id", "")
+            title = t.get("title", "Nomsiz")
+            cat   = t.get("category", "")
+            qc    = len(t.get("questions", []))
+            col_a, col_b = st.columns([4, 1])
+            with col_a:
+                st.markdown(f"**{title}** · 📁 {cat} · 📋 {qc} savol · `{tid}`")
+            with col_b:
+                if st.button("▶️ Yech", key=f"play_{tid}"):
+                    st.session_state["active_test"] = tid
+
+    active_tid = test_id_input.strip() if start_btn and test_id_input else st.session_state.get("active_test")
+    if active_tid:
+        try:
+            import pathlib, json
+            import streamlit.components.v1 as components
+            from firebase.db import get_test as _get_test
+
+            test = _get_test(active_tid)
+            if not test:
+                st.error(f"❌ Test topilmadi: `{active_tid}`")
+            else:
+                st.success(f"✅ **{test.get('title')}** — {len(test.get('questions',[]))} ta savol")
+                html_path = pathlib.Path(__file__).parent / "static" / "quiz_modal.html"
+                if html_path.exists():
+                    html = html_path.read_text(encoding="utf-8")
+                    test_json = json.dumps(test, ensure_ascii=False, default=str)
+                    inject = f"<script>window.addEventListener('load',()=>setTimeout(()=>initTest({test_json}),150));</script>"
+                    html = html.replace("</body>", inject + "</body>")
+                    components.html(html, height=720, scrolling=False)
+                else:
+                    st.error("❌ static/quiz_modal.html topilmadi")
+        except Exception as e:
+            st.error(f"Xatolik: {e}")
+
+# ─────────────────────────────────────────────────────────
+# 📜 NATIJALAR TARIXI
+# ─────────────────────────────────────────────────────────
+elif menu == "📜 Natijalar Tarixi":
+    st.header("📜 Foydalanuvchi Natijalari Tarixi")
+
+    col1, col2 = st.columns([3,1])
+    with col1:
+        uid_input = st.text_input("👤 Foydalanuvchi Telegram ID:", placeholder="Masalan: 123456789")
+    with col2:
+        st.write(""); st.write("")
+        load_btn = st.button("📥 Yuklash", type="primary")
+
+    if load_btn and uid_input:
+        try:
+            import pathlib, json
+            import streamlit.components.v1 as components
+            from firebase.db import get_user_results as _get_results
+
+            uid = int(uid_input.strip())
+            results = _get_results(uid, limit=200)
+            if not results:
+                st.warning("📭 Bu foydalanuvchida natijalar yo'q.")
+            else:
+                st.success(f"✅ {len(results)} ta natija topildi")
+                html_path = pathlib.Path(__file__).parent / "static" / "history_modal.html"
+                if html_path.exists():
+                    html = html_path.read_text(encoding="utf-8")
+                    res_json = json.dumps(results, ensure_ascii=False, default=str)
+                    inject = f"<script>window.addEventListener('load',()=>setTimeout(()=>initHistory({res_json}),150));</script>"
+                    html = html.replace("</body>", inject + "</body>")
+                    components.html(html, height=680, scrolling=False)
+                else:
+                    st.error("❌ static/history_modal.html topilmadi")
+        except ValueError:
+            st.error("❌ To'g'ri Telegram ID kiriting (raqam)")
+        except Exception as e:
+            st.error(f"Xatolik: {e}")

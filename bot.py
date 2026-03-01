@@ -27,7 +27,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import ErrorEvent
+from aiogram.types import ErrorEvent, Message
+from aiogram.filters import StateFilter
 
 from config import BOT_TOKEN
 from firebase.config import initialize_firebase
@@ -44,6 +45,24 @@ from handlers.admin        import router as admin_router
 # Bot va Dispatcher
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp  = Dispatcher(storage=MemoryStorage())
+
+
+# ── Kalit xabarni har qanday asosiy buyruqda o'chirish ───
+MAIN_MENU_TEXTS = {
+    "📊 Natijalarim", "🏆 Reyting", "🗂 Mening testlarim",
+    "👤 Profil", "ℹ️ Yordam", "👑 Admin Panel", "🏠 Asosiy menyu"
+}
+
+@dp.message.outer_middleware()
+async def key_cleaner_middleware(handler, event: Message, data: dict):
+    """Asosiy menu buyruqlari bosilganda kalit javoblarni tozalash"""
+    if isinstance(event, Message) and event.text in MAIN_MENU_TEXTS:
+        try:
+            from handlers.create_test import clear_key_msg
+            await clear_key_msg(event.bot, event.from_user.id, event.chat.id)
+        except Exception:
+            pass
+    return await handler(event, data)
 
 # Routerlarni ulash (tartib muhim!)
 dp.include_router(start_router)
