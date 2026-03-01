@@ -1,16 +1,19 @@
 """
-📊 BALL HISOBLASH — Universal format
-correct = index (0,1,2) yoki string (text_input uchun)
+📊 BALL HISOBLASH VA NATIJA FORMATLASH
+7 xil test turi uchun to'g'ri hisoblash
+BUG FIX: "A)" va "A) Toshkent" bir xil harf — to'g'ri hisoblanadi
 """
 import re
 import logging
 from typing import Any, Tuple
 
 log = logging.getLogger(__name__)
+
 LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
 
 def calculate_score(questions: list, answers: dict) -> dict:
+    """Test natijasini hisoblash"""
     max_score = sum(q.get("points", 1) for q in questions)
     earned = correct = wrong = skipped = 0
     details = []
@@ -56,23 +59,8 @@ def calculate_score(questions: list, answers: dict) -> dict:
     }
 
 
-def _to_index(val: Any) -> int | None:
-    """Javobni index ga o'girish: "A" → 0, "B" → 1, 2 → 2"""
-    if isinstance(val, int):
-        return val
-    if isinstance(val, str):
-        s = val.strip()
-        # Harf: "A", "B", "A)"
-        m = re.match(r"^([A-Za-z])[\.\)]?$", s)
-        if m:
-            return ord(m.group(1).upper()) - ord("A")
-        # Raqam string: "0", "1"
-        if s.isdigit():
-            return int(s)
-    return None
-
-
 def _check(q: dict, ans: Any, pts: float) -> Tuple[bool, float]:
+    """Javobni to'g'riligini tekshirish"""
     t       = q.get("type", "multiple_choice")
     correct = q.get("correct")
     if correct is None:
@@ -80,29 +68,29 @@ def _check(q: dict, ans: Any, pts: float) -> Tuple[bool, float]:
 
     try:
         if t == "multiple_choice":
-            u_idx = _to_index(ans)
-            c_idx = _to_index(correct)
-            if u_idx is not None and c_idx is not None:
-                ok = u_idx == c_idx
+            # Faqat bosh harf solishtirish: "A" == "A) Toshkent"
+            a_m = re.match(r"^([A-Za-z])", str(ans).strip())
+            c_m = re.match(r"^([A-Za-z])", str(correct).strip())
+            if a_m and c_m:
+                ok = a_m.group(1).lower() == c_m.group(1).lower()
                 return ok, pts if ok else 0.0
-            # Fallback: string solishtirish
             ok = str(ans).strip().lower() == str(correct).strip().lower()
             return ok, pts if ok else 0.0
 
         elif t == "true_false":
-            u_idx = _to_index(ans)
-            c_idx = _to_index(correct)
-            if u_idx is not None and c_idx is not None:
-                ok = u_idx == c_idx
-                return ok, pts if ok else 0.0
             ok = str(ans).strip().lower() == str(correct).strip().lower()
             return ok, pts if ok else 0.0
 
         elif t == "multi_select":
             if isinstance(ans, list) and isinstance(correct, list):
-                u_set = set(_to_index(x) for x in ans if _to_index(x) is not None)
-                c_set = set(_to_index(x) for x in correct if _to_index(x) is not None)
-                ok = u_set == c_set
+                def ls(lst):
+                    s = set()
+                    for x in lst:
+                        m = re.match(r"^([A-Za-z])", str(x).strip())
+                        if m:
+                            s.add(m.group(1).lower())
+                    return s
+                ok = ls(ans) == ls(correct)
                 return ok, pts if ok else 0.0
 
         elif t in ("text_input", "fill_blank"):
@@ -147,13 +135,18 @@ def _emoji(p: float) -> str:
 
 
 def format_result(res: dict, test: dict) -> str:
+    """Yakuniy natija xabari matni"""
     pct    = res.get("percentage", 0)
     passed = pct >= test.get("passing_score", 60)
     m, s   = divmod(res.get("time_spent", 0), 60)
     emoji  = res.get("emoji", "📝")
     grade  = res.get("grade", "F")
-    holat  = "🎉 MUVAFFAQIYATLI O'TDINGIZ!" if passed else \
-             f"❌ YIQILDINGIZ. (O'tish: {test.get('passing_score', 60)}%)"
+
+    if passed:
+        holat = "🎉 MUVAFFAQIYATLI O'TDINGIZ!"
+    else:
+        holat = f"❌ YIQILDINGIZ. (O'tish: {test.get('passing_score', 60)}%)"
+
     return (
         f"{emoji} <b>TEST NATIJASI</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
