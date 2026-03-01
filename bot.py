@@ -1,135 +1,126 @@
 """
-🎓 QUIZ BOT — Aiogram 3.x
-✅ Deploy boshlanganda AVVAL webhook/eski polling o'chiriladi
-✅ Singleton — ikki instance HECH QACHON ochilmaydi
-✅ Streamlit bilan thread-safe
+🎓 QUIZ BOT — Aiogram 3 (To'liq versiya)
+✅ Conflict-free polling (Singleton Threading)
+✅ Global Error Handler
+✅ Poll test rejimi (Native Telegram Quiz Poll)
+✅ Inline test rejimi (Tugmalar bilan)
 """
-import asyncio
 import logging
+import asyncio
 import sys
 import threading
+import traceback
 
 logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    format="%(asctime)s | %(levelname)s | %(message)s",
     level=logging.INFO,
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 log = logging.getLogger(__name__)
 
+# Keraksiz loglarni yashirish
+logging.getLogger("aiogram").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import ErrorEvent
 
 from config import BOT_TOKEN
-from firebase.config import init_firebase
+from firebase.config import initialize_firebase
 
-# ── Singleton ─────────────────────────────────────────────
-_lock    = threading.Lock()
-_started = False
-_thread: threading.Thread | None = None
+# Barcha handlerlarni import qilish
+from handlers.start        import router as start_router
+from handlers.tests        import router as tests_router
+from handlers.poll_test    import router as poll_router
+from handlers.create_test  import router as create_router
+from handlers.profile      import router as profile_router
+from handlers.leaderboard  import router as lb_router
+from handlers.admin        import router as admin_router
+
+# Bot va Dispatcher
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp  = Dispatcher(storage=MemoryStorage())
+
+# Routerlarni ulash (tartib muhim!)
+dp.include_router(start_router)
+dp.include_router(poll_router)      # Poll handler — tests dan oldin!
+dp.include_router(tests_router)
+dp.include_router(create_router)
+dp.include_router(profile_router)
+dp.include_router(lb_router)
+dp.include_router(admin_router)
 
 
-def _build_dp() -> Dispatcher:
-    from handlers import start, tests, create_test, profile, leaderboard, admin
-    dp = Dispatcher(storage=MemoryStorage())
-    dp.include_router(start.router)
-    dp.include_router(tests.router)
-    dp.include_router(create_test.router)
-    dp.include_router(profile.router)
-    dp.include_router(leaderboard.router)
-    dp.include_router(admin.router)
-    return dp
+# ── Global Error Handler ──────────────────────────────────
+
+@dp.errors()
+async def global_error(event: ErrorEvent):
+    log.error(f"Kutilmagan xatolik: {type(event.exception).__name__}: {event.exception}")
+    traceback.print_exc()
+    return True
 
 
-async def _kill_all_sessions(bot: Bot):
+# ═══════════════════════════════════════════════════════════
+# STREAMLIT UCHUN SINGLETON THREADING
+# ═══════════════════════════════════════════════════════════
+
+_lock       = threading.Lock()
+_bot_thread = None
+_started    = False
+
+
+def run_bot_in_background():
     """
-    Eski webhook VA getUpdates sessiyalarini to'liq o'chiradi.
-    drop_pending_updates=True — eski xabarlar ham o'chiriladi.
+    Streamlit har yangilanganda bot qayta ishga tushib
+    TelegramConflictError bermasligi uchun Singleton pattern.
     """
-    try:
-        # 1. Webhookni o'chirish
-        await bot.delete_webhook(drop_pending_updates=True)
-        log.info("🪓 Webhook o'chirildi + pending updates tozalandi")
-    except Exception as e:
-        log.warning(f"Webhook o'chirishda xato (muammo emas): {e}")
-
-    # 2. Biroz kutish — Telegram serverida eski session yopilsin
-    await asyncio.sleep(2)
-    log.info("✅ Telegram session tozalandi, polling boshlanadi")
-
-
-async def _run_polling():
-    if not BOT_TOKEN:
-        log.error("❌ BOT_TOKEN topilmadi! Secrets ni tekshiring.")
-        return
-
-    init_firebase()
-
-    bot = Bot(
-        token=BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-    )
-
-    # Har safar botni ishga tushirishdan OLDIN eski sessionni o'chiramiz
-    await _kill_all_sessions(bot)
-
-    dp = _build_dp()
-
-    log.info("🚀 Polling boshlandi!")
-    try:
-        await dp.start_polling(
-            bot,
-            allowed_updates=dp.resolve_used_update_types(),
-            drop_pending_updates=True,
-            polling_timeout=30,
-            handle_signals=False,    # Streamlit signal bilan to'qnashuv yo'q
-        )
-    finally:
-        await bot.session.close()
-        log.info("🛑 Bot to'xtatildi")
-
-
-def run_bot() -> threading.Thread | None:
-    """
-    Botni bitta background thread da ishga tushiradi.
-    Ikkinchi marta chaqirilsa — mavjud threadni qaytaradi.
-    """
-    global _started, _thread
+    global _bot_thread, _started
 
     with _lock:
-        # Thread tirik bo'lsa — yangi ochmayiz
-        if _thread and _thread.is_alive():
-            log.info("⚠️  Bot allaqachon ishlayapti — yangi instance ochilmadi")
-            return _thread
-
-        # Birinchi marta yoki thread o'lgan bo'lsa — yangisini ochamiz
+        if _started:
+            return _bot_thread
         _started = True
 
-    def _target():
+    initialize_firebase()
+
+    async def _run():
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            log.info("🚀 Bot ishga tushdi (Streamlit thread)!")
+            await dp.start_polling(bot, handle_signals=False)
+        except Exception as e:
+            log.error(f"Polling xatosi: {e}")
+
+    def _thread():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(_run_polling())
-        except Exception as e:
-            log.error(f"Bot thread xato: {e}")
+            loop.run_until_complete(_run())
         finally:
             loop.close()
-            log.info("🧵 BotThread yopildi")
 
-    _thread = threading.Thread(
-        target=_target,
-        daemon=True,
-        name="BotThread"
-    )
-    _thread.start()
-    log.info(f"🧵 BotThread ishga tushdi (id={_thread.ident})")
-    return _thread
+    _bot_thread = threading.Thread(target=_thread, daemon=True, name="BotThread")
+    _bot_thread.start()
+    return _bot_thread
 
 
-# ── Lokal ishlatish: python bot.py ────────────────────────
+# ═══════════════════════════════════════════════════════════
+# LOKAL ISHGA TUSHIRISH: python bot.py
+# ═══════════════════════════════════════════════════════════
+
 if __name__ == "__main__":
+    initialize_firebase()
+
+    async def main():
+        await bot.delete_webhook(drop_pending_updates=True)
+        log.info("🚀 Bot lokal rejimda ishga tushdi!")
+        await dp.start_polling(bot)
+
     try:
-        asyncio.run(_run_polling())
-    except KeyboardInterrupt:
-        log.info("🛑 To'xtatildi")
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        log.info("🛑 Bot to'xtatildi.")
