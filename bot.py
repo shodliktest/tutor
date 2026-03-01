@@ -41,6 +41,7 @@ from handlers.create_test  import router as create_router
 from handlers.profile      import router as profile_router
 from handlers.leaderboard  import router as lb_router
 from handlers.admin        import router as admin_router
+from handlers.webapp       import router as webapp_router  # 🆕 Web App handler
 
 # Bot va Dispatcher
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -65,6 +66,7 @@ async def key_cleaner_middleware(handler, event: Message, data: dict):
     return await handler(event, data)
 
 # Routerlarni ulash (tartib muhim!)
+dp.include_router(webapp_router)    # 🆕 Web App — birinchi bo'lishi kerak!
 dp.include_router(start_router)
 dp.include_router(poll_router)      # Poll handler — tests dan oldin!
 dp.include_router(tests_router)

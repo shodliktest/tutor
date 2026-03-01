@@ -58,3 +58,8 @@ DIFFICULTY_LEVELS = {
     "hard":   "🔴 Qiyin",
     "expert": "⚡ Ekspert",
 }
+
+# ── Telegram Web App URL ──────────────────────────────────
+# GitHub Pages URL: https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/webapp_pages
+# Yoki boshqa hosting URL (HTTPS bo'lishi SHART)
+WEBAPP_BASE_URL: str = _s("WEBAPP_BASE_URL", "").rstrip("/")
