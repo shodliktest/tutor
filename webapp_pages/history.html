@@ -226,6 +226,13 @@ function render(results){
   try{
     const params=new URLSearchParams(location.search);
     const raw=params.get('data');
+    const userId=params.get('user_id');
+    
+    // user_id berilgan bo'lsa — Firebase dan natijalarni yuklab olish
+    if(!raw && userId){
+      _loadHistoryFromFirebase(userId);
+      return;
+    }
     if(!raw){
       document.getElementById('content').innerHTML=`<div class="emp">
         <div class="emp-ico">❌</div>
@@ -236,27 +243,7 @@ function render(results){
     }
     const results=JSON.parse(atob(decodeURIComponent(raw)));
     ALL=Array.isArray(results)?results:[];
-    
-    // Stats
-    document.getElementById('st-all').textContent=ALL.length;
-    if(ALL.length){
-      const avg=Math.round(ALL.reduce((s,r)=>s+(r.score||r.percentage||0),0)/ALL.length);
-      const best=Math.max(...ALL.map(r=>r.score||r.percentage||0));
-      document.getElementById('st-avg').textContent=avg+'%';
-      document.getElementById('st-best').textContent=best+'%';
-    }
-    
-    // Subject filters
-    const subjects=[...new Set(ALL.map(r=>r.subject||r.category||'other'))];
-    const fr=document.getElementById('filters');
-    subjects.forEach(s=>{
-      const btn=document.createElement('button');
-      btn.className='ftag';
-      btn.textContent=s;
-      btn.onclick=function(){setFilter(s,this);};
-      fr.appendChild(btn);
-    });
-    
+    _renderStats();
     render(ALL);
   }catch(e){
     console.error('History init err:',e);
@@ -267,6 +254,43 @@ function render(results){
     </div>`;
   }
 })();
+
+// Firebase dan natijalar yuklash
+async function _loadHistoryFromFirebase(userId){
+  document.getElementById('content').innerHTML='<div class="emp"><div class="sp" style="width:32px;height:32px;border:3px solid rgba(108,63,232,.15);border-top-color:#6C3FE8;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem"></div><p>Firebase dan yuklanmoqda...</p></div>';
+  try{
+    if(typeof window.FirebaseDB==='undefined'){
+      document.getElementById('content').innerHTML='<div class="emp"><div class="emp-ico">❌</div><div class="emp-t">Firebase ulanmagan</div></div>';
+      return;
+    }
+    const results=await window.FirebaseDB.getUserResults(userId,100);
+    ALL=Array.isArray(results)?results:[];
+    _renderStats();
+    render(ALL);
+  }catch(e){
+    console.error(e);
+    document.getElementById('content').innerHTML=`<div class="emp"><div class="emp-ico">❌</div><div class="emp-t">Xatolik</div><div class="emp-p">${e.message}</div></div>`;
+  }
+}
+
+function _renderStats(){
+  document.getElementById('st-all').textContent=ALL.length;
+  if(ALL.length){
+    const avg=Math.round(ALL.reduce((s,r)=>s+(r.score||r.percentage||0),0)/ALL.length);
+    const best=Math.max(...ALL.map(r=>r.score||r.percentage||0));
+    document.getElementById('st-avg').textContent=avg+'%';
+    document.getElementById('st-best').textContent=best+'%';
+  }
+  const subjects=[...new Set(ALL.map(r=>r.subject||r.category||'other'))];
+  const fr=document.getElementById('filters');
+  subjects.forEach(s=>{
+    const btn=document.createElement('button');
+    btn.className='ftag';
+    btn.textContent=s;
+    btn.onclick=function(){setFilter(s,this);};
+    fr.appendChild(btn);
+  });
+}
 </script>
 </body>
 </html>

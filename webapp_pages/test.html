@@ -217,6 +217,13 @@ function showErr(title,msg){
   try{
     const params=new URLSearchParams(location.search);
     const raw=params.get('data');
+    const testId=params.get('test_id');
+    
+    // Agar faqat test_id berilgan bo'lsa — Firebase dan yuklab olish
+    if(!raw && testId){
+      _loadFromFirebase(testId);
+      return;
+    }
     if(!raw){showErr('Test topilmadi','Bot test ma\'lumotini yubormadi');return;}
     
     const decoded=JSON.parse(atob(decodeURIComponent(raw)));
@@ -224,32 +231,51 @@ function showErr(title,msg){
     questions=decoded.questions||[];
     
     if(!questions.length){showErr('Savollar yo\'q','Bu testda savol qo\'shilmagan');return;}
-    if(decoded.shuffleQuestions)questions=questions.sort(()=>Math.random()-.5);
-    
-    startTime=Date.now();
-    
-    // Timer
-    if(decoded.timeLimit>0){
-      let rem=decoded.timeLimit*60;
-      const tw=document.getElementById('timer-wrap');
-      const tick=()=>{const d=document.createElement('div');d.className='timer'+(rem<60?' warn':'');d.textContent=fmtTime(rem);tw.replaceChildren(d);};
-      tick();timerInt=setInterval(()=>{rem--;tick();if(rem<=0){clearInterval(timerInt);finish();}},1000);
-    }
-    
-    document.getElementById('scr-load').style.display='none';
-    document.getElementById('scr-test').style.display='block';
-    document.getElementById('t-title').textContent=decoded.title||'Test';
-    document.getElementById('t-chips').innerHTML=
-      `<span class="ch">📝 ${questions.length} savol</span>`+
-      (decoded.category?`<span class="ch">📁 ${esc(decoded.category)}</span>`:'')+
-      (decoded.difficulty?`<span class="ch">⚡ ${esc(decoded.difficulty)}</span>`:'')+
-      (decoded.timeLimit?`<span class="ch">⏱ ${decoded.timeLimit} daq</span>`:'');
-    renderQ();
+    _startTest();
   }catch(e){
     console.error('Init error:',e);
     showErr('Xatolik',e.message||'Ma\'lumotni o\'qishda xatolik');
   }
 })();
+
+// Firebase dan test yuklab olish
+async function _loadFromFirebase(testId){
+  document.getElementById('scr-load').innerHTML='<div class="loading"><div class="sp"></div><p>Firebase dan yuklanmoqda...</p></div>';
+  try{
+    // firebase-config.js ulanganmi?
+    if(typeof window.FirebaseDB==='undefined'){
+      showErr('Firebase ulanmagan','firebase-config.js faylini tekshiring');return;
+    }
+    const test=await window.FirebaseDB.getTestById(testId);
+    if(!test){showErr('Test topilmadi','Bu test mavjud emas yoki o\'chirilgan');return;}
+    testData=test;
+    questions=test.questions||[];
+    if(!questions.length){showErr('Savollar yo\'q','Bu testda savol yo\'q');return;}
+    _startTest();
+  }catch(e){
+    showErr('Xatolik',e.message||'Firebase dan yuklashda xatolik');
+  }
+}
+
+function _startTest(){
+  if(testData.shuffleQuestions) questions=questions.sort(()=>Math.random()-.5);
+  startTime=Date.now();
+  if(testData.timeLimit>0){
+    let rem=testData.timeLimit*60;
+    const tw=document.getElementById('timer-wrap');
+    const tick=()=>{const d=document.createElement('div');d.className='timer'+(rem<60?' warn':'');d.textContent=fmtTime(rem);tw.replaceChildren(d);};
+    tick();timerInt=setInterval(()=>{rem--;tick();if(rem<=0){clearInterval(timerInt);finish();}},1000);
+  }
+  document.getElementById('scr-load').style.display='none';
+  document.getElementById('scr-test').style.display='block';
+  document.getElementById('t-title').textContent=testData.title||'Test';
+  document.getElementById('t-chips').innerHTML=
+    `<span class="ch">📝 ${questions.length} savol</span>`+
+    (testData.category?`<span class="ch">📁 ${esc(testData.category)}</span>`:'')+
+    (testData.difficulty?`<span class="ch">⚡ ${esc(testData.difficulty)}</span>`:'')+
+    (testData.timeLimit?`<span class="ch">⏱ ${testData.timeLimit} daq</span>`:'');
+  renderQ();
+}
 
 function renderQ(){
   const q=questions[curIdx];if(!q)return;
