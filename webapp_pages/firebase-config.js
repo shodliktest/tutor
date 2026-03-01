@@ -11,12 +11,12 @@
 // 1. SHU QATORLARNI O'ZGARTIRING
 // ═══════════════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCPdGiX2gnPCvfP7KFSixP09PbVkVZ_eEo",
+  authDomain: "testbot-7c514.firebaseapp.com",
+  projectId: "testbot-7c514",
+  storageBucket: "testbot-7c514.appspot.com",
+  messagingSenderId: "223522501634",
+  appId: "1:223522501634:web:ca9865cc95e0bc5db9a31b"
 };
 
 // ═══════════════════════════════════════════════════════════
