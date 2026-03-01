@@ -1,17 +1,23 @@
 """
-👤 PROFIL, NATIJALAR VA MENING TESTLARIM
+👤 PROFIL, NATIJALAR (8 tadan + sahifalash) va MENING TESTLARIM (5 tadan + sahifalash)
+Tahlil — modal alert oyna orqali chiroyli ko'rsatish
+Test kartochkasi — chapga/o'ngga knopkalar
 """
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
+from aiogram.exceptions import TelegramBadRequest
 
 from firebase.db import get_user, get_user_results, get_test, get_my_tests
 from keyboards.keyboards import main_reply_keyboard
 
 log = logging.getLogger(__name__)
 router = Router()
+
+PAGE_SIZE_RESULTS = 8   # Natijalar sahifasida nechta
+PAGE_SIZE_TESTS   = 5   # Mening testlarim sahifasida nechta
 
 
 # ═══════════════════════════════════════════════════════════
@@ -33,18 +39,22 @@ async def _show_profile(msg, uid: int, edit: bool = False):
     user = get_user(uid)
     if not user:
         text = "❌ Profil topilmadi. /start ni bosing."
-        if edit:
-            await msg.edit_text(text)
-        else:
-            await msg.answer(text)
+        await (msg.edit_text(text) if edit else msg.answer(text))
         return
 
-    role_map = {
-        "admin":   "👑 Admin",
-        "teacher": "👨‍🏫 O'qituvchi",
-        "user":    "🎓 O'quvchi",
-    }
+    role_map = {"admin": "👑 Admin", "teacher": "👨‍🏫 O'qituvchi", "user": "🎓 O'quvchi"}
     role = role_map.get(user.get("role", "user"), "🎓 O'quvchi")
+    avg  = round(user.get("avg_score", 0), 1)
+    total = user.get("total_tests", 0)
+
+    # Badge hisoblash
+    badges = []
+    if total >= 1:   badges.append("🥉 Boshliqchi")
+    if total >= 10:  badges.append("🥈 Tajribali")
+    if total >= 50:  badges.append("🥇 Ustoz")
+    if avg >= 90:    badges.append("🌟 Mukammal")
+    if avg >= 80:    badges.append("🔥 A'lochi")
+    badge_str = "  ".join(badges) if badges else "Hali yo'q"
 
     text = (
         f"👤 <b>SHAXSIY PROFIL</b>\n"
@@ -53,117 +63,519 @@ async def _show_profile(msg, uid: int, edit: bool = False):
         f"👤 Ism: <b>{user.get('name', 'Noma\'lum')}</b>\n"
         f"🎭 Rol: <b>{role}</b>\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📋 Yechilgan testlar: <b>{user.get('total_tests', 0)} ta</b>\n"
-        f"📊 O'rtacha natija: <b>{round(user.get('avg_score', 0), 1)}%</b>\n"
+        f"📋 Yechilgan testlar: <b>{total} ta</b>\n"
+        f"📊 O'rtacha natija: <b>{avg}%</b>\n"
+        f"🏅 Yutuqlar: {badge_str}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━"
     )
-
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📊 Natijalar tarixim", callback_data="profile_results"))
+    builder.row(InlineKeyboardButton(text="📋 Natijalarim tarixi", callback_data="results_p0"))
     builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
     kb = builder.as_markup()
 
-    if edit:
-        try:
+    try:
+        if edit:
             await msg.edit_text(text, reply_markup=kb)
-            return
-        except Exception:
-            pass
-    await msg.answer(text, reply_markup=kb)
+        else:
+            await msg.answer(text, reply_markup=kb)
+    except TelegramBadRequest:
+        await msg.answer(text, reply_markup=kb)
 
 
 # ═══════════════════════════════════════════════════════════
-# 2. NATIJALAR TARIXI
+# 2. NATIJALAR TARIXI — 8 tadan, sahifalash
 # ═══════════════════════════════════════════════════════════
 
 @router.message(F.text == "📊 Natijalarim")
 async def results_msg(message: Message):
-    await _show_results(message, message.from_user.id)
+    await _show_results(message, message.from_user.id, page=0)
 
 
-@router.callback_query(F.data == "profile_results")
-async def results_cb(callback: CallbackQuery):
+@router.callback_query(F.data.startswith("results_p"))
+async def results_page_cb(callback: CallbackQuery):
     await callback.answer()
-    await _show_results(callback.message, callback.from_user.id, edit=True)
+    page = int(callback.data[9:])
+    await _show_results(callback.message, callback.from_user.id, page=page, edit=True)
 
 
-async def _show_results(msg, uid: int, edit: bool = False):
-    results = get_user_results(uid, limit=15)
+async def _show_results(msg, uid: int, page: int = 0, edit: bool = False):
+    all_results = get_user_results(uid, limit=200)
 
-    if not results:
-        text = "📭 Siz hali hech qanday test ishlamagansiz."
-        if edit:
-            try:
-                await msg.edit_text(text)
-                return
-            except Exception:
-                pass
-        await msg.answer(text)
+    if not all_results:
+        text = (
+            "📭 <b>NATIJALAR TARIXI</b>\n\n"
+            "Siz hali hech qanday test ishlamagansiz.\n"
+            "Testlar bo'limidan boshlang! 🚀"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📚 Testlarga o'tish", callback_data="go_tests"))
+        try:
+            if edit: await msg.edit_text(text, reply_markup=builder.as_markup())
+            else:    await msg.answer(text, reply_markup=builder.as_markup())
+        except TelegramBadRequest:
+            await msg.answer(text, reply_markup=builder.as_markup())
         return
 
-    text    = "📋 <b>OXIRGI NATIJALARINGIZ:</b>\n\n"
-    builder = InlineKeyboardBuilder()
+    total_pages = (len(all_results) + PAGE_SIZE_RESULTS - 1) // PAGE_SIZE_RESULTS
+    page = max(0, min(page, total_pages - 1))
+    chunk = all_results[page * PAGE_SIZE_RESULTS:(page + 1) * PAGE_SIZE_RESULTS]
 
-    for res in results:
-        test = get_test(res.get("test_id", ""))
-        title = test.get("title", "O'chirilgan test")[:25] if test else "Noma'lum"
+    text = (
+        f"📋 <b>NATIJALAR TARIXI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Sahifa {page+1}/{total_pages} | Jami: {len(all_results)} ta</i>\n\n"
+    )
+
+    builder = InlineKeyboardBuilder()
+    for res in chunk:
+        test  = get_test(res.get("test_id", ""))
+        title = (test.get("title", "O'chirilgan")[:22] if test else "Noma'lum test")
         icon  = "✅" if res.get("passed") else "❌"
         pct   = res.get("percentage", 0)
         mode  = "📊" if res.get("mode") == "poll" else "▶️"
         dt    = res.get("completed_at")
-        date  = dt.strftime("%d.%m") if dt and hasattr(dt, "strftime") else "--"
+        date  = ""
+        try:
+            if dt and hasattr(dt, "strftime"):
+                date = dt.strftime("%d.%m")
+            elif dt and hasattr(dt, "timestamp"):
+                from datetime import datetime, timezone
+                date = datetime.fromtimestamp(float(dt.timestamp()), tz=timezone.utc).strftime("%d.%m")
+        except Exception:
+            date = "--"
 
-        text += f"{icon} {mode} <b>{title}</b> — {pct}% ({date})\n"
+        rid = res.get("result_id", "")
+        text += f"{icon} {mode} <b>{title}</b>\n   📊 {pct}% | 📅 {date}\n\n"
         builder.row(InlineKeyboardButton(
-            text=f"🔍 {title[:20]} — Tahlil",
-            callback_data=f"analysis_{res.get('result_id')}"
+            text=f"{icon} {title[:18]} — {pct}%",
+            callback_data=f"res_detail_{rid}"
         ))
 
+    # Sahifa navigatsiyasi
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️ Oldingi", callback_data=f"results_p{page-1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton(text="Keyingi ▶️", callback_data=f"results_p{page+1}"))
+    if nav:
+        builder.row(*nav)
     builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
-    kb = builder.as_markup()
 
-    if edit:
-        try:
-            await msg.edit_text(text, reply_markup=kb)
-            return
-        except Exception:
-            pass
-    await msg.answer(text, reply_markup=kb)
+    try:
+        if edit: await msg.edit_text(text, reply_markup=builder.as_markup())
+        else:    await msg.answer(text, reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        await msg.answer(text, reply_markup=builder.as_markup())
 
 
 # ═══════════════════════════════════════════════════════════
-# 3. MENING TESTLARIM
+# 3. TEST NATIJASI KARTOCHKASI — chapga/o'ngga navigatsiya
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data.startswith("res_detail_"))
+async def result_detail(callback: CallbackQuery):
+    await callback.answer()
+    rid = callback.data[11:]
+    await _show_result_card(callback, rid)
+
+
+async def _show_result_card(callback: CallbackQuery, rid: str):
+    from firebase.db import get_result_by_id
+    res  = get_result_by_id(rid)
+    if not res:
+        return await callback.message.answer("❌ Natija topilmadi.")
+
+    test  = get_test(res.get("test_id", ""))
+    title = test.get("title", "Noma'lum") if test else "O'chirilgan test"
+    cat   = test.get("category", "") if test else ""
+
+    pct    = res.get("percentage", 0)
+    passed = res.get("passed", False)
+    mode   = "📊 Poll" if res.get("mode") == "poll" else "▶️ Inline"
+    m, s   = divmod(res.get("time_spent", 0), 60)
+
+    dt_str = "--"
+    try:
+        dt = res.get("completed_at")
+        if dt and hasattr(dt, "timestamp"):
+            from datetime import datetime, timezone
+            dt_str = datetime.fromtimestamp(float(dt.timestamp()), tz=timezone.utc).strftime("%d.%m.%Y %H:%M")
+        elif dt and hasattr(dt, "strftime"):
+            dt_str = dt.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        pass
+
+    text = (
+        f"{'✅' if passed else '❌'} <b>TEST NATIJASI KARTOCHKASI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{title}</b>\n"
+        f"📁 Fan: {cat}\n"
+        f"🎮 Rejim: {mode}\n"
+        f"📅 Sana: {dt_str}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 O'zlashtirish: <b>{pct}%</b>\n"
+        f"✅ To'g'ri: <b>{res.get('correct_count', 0)}</b>   "
+        f"❌ Xato: <b>{res.get('wrong_count', 0)}</b>   "
+        f"⏭ O'tkazilgan: <b>{res.get('skipped_count', 0)}</b>\n"
+        f"⏱ Vaqt: <b>{m}:{s:02d}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{'🎉 MUVAFFAQIYATLI!' if passed else '❌ YIQILDINGIZ'}"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🔍 Batafsil tahlil (modal)",
+        callback_data=f"analysis_{rid}"
+    ))
+    if test:
+        builder.row(
+            InlineKeyboardButton(text="🔄 Qaytadan",  callback_data=f"start_test_{res.get('test_id')}"),
+            InlineKeyboardButton(text="📤 Ulashish",  callback_data=f"share_test_{res.get('test_id')}"),
+        )
+    builder.row(InlineKeyboardButton(text="⬅️ Natijalar", callback_data="results_p0"))
+
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+
+
+# ═══════════════════════════════════════════════════════════
+# 4. BATAFSIL TAHLIL — Modal alert oyna orqali (show_alert=True)
+# ═══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data.startswith("analysis_"))
+async def analysis_modal(callback: CallbackQuery):
+    """Tahlilni modal alert oyna orqali ko'rsatish"""
+    rid = callback.data[9:]
+    from firebase.db import get_result_by_id
+    res = get_result_by_id(rid)
+
+    if not res:
+        return await callback.answer("❌ Natija topilmadi.", show_alert=True)
+
+    test      = get_test(res.get("test_id", ""))
+    detailed  = res.get("detailed_results", [])
+    questions = test.get("questions", []) if test else []
+
+    if not detailed:
+        return await callback.answer(
+            "⚠️ Bu test uchun batafsil tahlil mavjud emas.\n"
+            "(Eski versiyada ishlangan testlar uchun saqlanmagan)",
+            show_alert=True
+        )
+
+    # Modal uchun qisqa versiya (200 belgi limit)
+    # Alohida sahifali tahlil xabar sifatida yuboramiz
+    total   = len(detailed)
+    correct = sum(1 for d in detailed if d.get("is_correct"))
+    wrong   = total - correct
+
+    # Modal oynada umumiy ko'rsatkich
+    summary = (
+        f"📊 BATAFSIL TAHLIL\n"
+        f"{'─'*25}\n"
+        f"✅ To'g'ri: {correct}/{total}\n"
+        f"❌ Xato: {wrong}/{total}\n"
+        f"{'─'*25}\n"
+        f"Har savol tahlili quyida yuboriladi ⬇️"
+    )
+    await callback.answer(summary, show_alert=True)
+
+    # Har bir savol uchun alohida chiroyli kartochka
+    title = test.get("title", "Test").upper() if test else "TEST"
+
+    # Barcha tahlilni bitta xabarga yig'amiz (4000 dan oshsa bo'lib yuboramiz)
+    chunks = []
+    header = f"📝 <b>{title} — BATAFSIL TAHLIL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    current = header
+
+    for d in detailed:
+        i     = d.get("question_index", 0)
+        is_c  = d.get("is_correct", False)
+        u_ans = d.get("user_answer") or "Belgilanmagan"
+        c_ans = d.get("correct_answer", "?")
+        q_obj = questions[i] if i < len(questions) else {}
+        q_txt = q_obj.get("question", q_obj.get("text", f"{i+1}-savol"))
+        expl  = q_obj.get("explanation", "")
+        pts   = d.get("earned_points", 0)
+        max_p = d.get("max_points", 1)
+
+        # Chiroyli kartochka
+        block = (
+            f"{'✅' if is_c else '❌'} <b>Savol {i+1}</b> "
+            f"[{pts}/{max_p} ball]\n"
+            f"<i>{q_txt[:100]}{'...' if len(q_txt) > 100 else ''}</i>\n"
+        )
+        if not is_c:
+            block += (
+                f"  👤 Siz: <code>{str(u_ans)[:50]}</code>\n"
+                f"  🎯 To'g'ri: <code>{str(c_ans)[:50]}</code>\n"
+            )
+        else:
+            block += f"  ✔️ Javob: <code>{str(c_ans)[:50]}</code>\n"
+
+        if expl and expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan", ""):
+            block += f"  💡 <i>{expl[:80]}{'...' if len(expl) > 80 else ''}</i>\n"
+        block += "\n"
+
+        if len(current) + len(block) > 3800:
+            chunks.append(current)
+            current = ""
+        current += block
+
+    if current.strip():
+        chunks.append(current)
+
+    # Oxirgi chunk ga qaytish tugmasi qo'shamiz
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="⬅️ Natijaga qaytish", callback_data=f"res_detail_{rid}"))
+
+    for idx, chunk in enumerate(chunks):
+        try:
+            if idx == len(chunks) - 1:
+                await callback.message.answer(chunk, reply_markup=builder.as_markup())
+            else:
+                await callback.message.answer(chunk)
+        except Exception as e:
+            log.error(f"Chunk yuborishda xato: {e}")
+
+
+# ═══════════════════════════════════════════════════════════
+# 5. MENING TESTLARIM — 5 tadan, sahifalash, ulashish, TXT
 # ═══════════════════════════════════════════════════════════
 
 @router.message(F.text == "🗂 Mening testlarim")
 async def my_tests_handler(message: Message):
-    uid   = message.from_user.id
+    await _show_my_tests(message, message.from_user.id, page=0)
+
+
+@router.callback_query(F.data.startswith("mytests_p"))
+async def my_tests_page(callback: CallbackQuery):
+    await callback.answer()
+    page = int(callback.data[9:])
+    await _show_my_tests(callback.message, callback.from_user.id, page=page, edit=True)
+
+
+async def _show_my_tests(msg, uid: int, page: int = 0, edit: bool = False):
     tests = get_my_tests(uid)
 
     if not tests:
-        await message.answer(
-            "📭 Siz hali test yaratmagansiz.\n"
-            "Menyudan '➕ Test Yaratish' ni bosing."
+        text = (
+            "📭 <b>MENING TESTLARIM</b>\n\n"
+            "Siz hali test yaratmagansiz.\n"
+            "➕ Test Yaratish bo'limidan boshlang!"
         )
+        try:
+            if edit: await msg.edit_text(text)
+            else:    await msg.answer(text)
+        except TelegramBadRequest:
+            await msg.answer(text)
         return
 
-    bot_uname = (await message.bot.me()).username
-    text      = "🗂 <b>SIZ YARATGAN TESTLAR:</b>\n\n"
+    total_pages = (len(tests) + PAGE_SIZE_TESTS - 1) // PAGE_SIZE_TESTS
+    page = max(0, min(page, total_pages - 1))
+    chunk = tests[page * PAGE_SIZE_TESTS:(page + 1) * PAGE_SIZE_TESTS]
 
-    for i, t in enumerate(tests, 1):
-        tid   = t.get("test_id")
+    text = (
+        f"🗂 <b>MENING TESTLARIM</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Sahifa {page+1}/{total_pages} | Jami: {len(tests)} ta</i>\n\n"
+    )
+    builder = InlineKeyboardBuilder()
+
+    for t in chunk:
+        tid   = t.get("test_id", "")
         title = t.get("title", "Nomsiz")
-        cat   = t.get("category", "Boshqa")
+        cat   = t.get("category", "")
         vis   = {"public": "🌍", "link": "🔗", "private": "🔒"}.get(t.get("visibility"), "")
+        sc    = t.get("solve_count", 0)
+        avg   = round(t.get("avg_score", 0), 1)
+        qc    = len(t.get("questions", []))
+
         text += (
-            f"{i}. <b>{title}</b> ({cat}) {vis}\n"
-            f"   🔑 Kod: <code>{tid}</code>\n"
-            f"   📊 Ishlangan: {t.get('solve_count', 0)} marta | "
-            f"⭐ O'rtacha: {t.get('avg_score', 0)}%\n"
-            f"   🔗 <code>https://t.me/{bot_uname}?start={tid}</code>\n\n"
+            f"{vis} <b>{title}</b> <code>[{tid}]</code>\n"
+            f"   📁 {cat} | 📋 {qc} savol | 👁 {sc} marta | ⭐ {avg}%\n\n"
+        )
+        # Har test uchun knopkalar
+        builder.row(
+            InlineKeyboardButton(text=f"🔍 {title[:16]}", callback_data=f"mytest_view_{tid}"),
+            InlineKeyboardButton(text="📤 Ulash",         callback_data=f"share_test_{tid}"),
+            InlineKeyboardButton(text="📄 TXT",           callback_data=f"mytest_txt_{tid}"),
         )
 
-    if len(text) > 4000:
-        text = text[:3990] + "\n...(ro'yxat qisqartirildi)"
+    # Sahifa navigatsiyasi
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️ Oldingi", callback_data=f"mytests_p{page-1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton(text="Keyingi ▶️", callback_data=f"mytests_p{page+1}"))
+    if nav:
+        builder.row(*nav)
+    builder.row(InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="main_menu"))
 
-    await message.answer(text)
+    try:
+        if edit: await msg.edit_text(text, reply_markup=builder.as_markup())
+        else:    await msg.answer(text, reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        await msg.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("mytest_view_"))
+async def my_test_view(callback: CallbackQuery):
+    """Test batafsil ma'lumoti va amallar"""
+    await callback.answer()
+    tid  = callback.data[12:]
+    test = get_test(tid)
+    if not test:
+        return await callback.message.answer("❌ Test topilmadi.")
+
+    from keyboards.keyboards import test_info_keyboard
+    qs  = test.get("questions", [])
+    vis = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}.get(
+        test.get("visibility"), "")
+    diff_map = {"easy": "🟢 Oson", "medium": "🟡 O'rtacha",
+                "hard": "🔴 Qiyin", "expert": "⚡ Ekspert"}
+    diff = diff_map.get(test.get("difficulty", ""), "")
+
+    text = (
+        f"🔍 <b>TEST MA'LUMOTLARI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{test.get('title')}</b>\n"
+        f"📁 Fan: {test.get('category')}\n"
+        f"📊 Qiyinlik: {diff}\n"
+        f"📋 Savollar: <b>{len(qs)} ta</b>\n"
+        f"🔒 Ko'rinish: {vis}\n"
+        f"👁 Ishlangan: <b>{test.get('solve_count', 0)} marta</b>\n"
+        f"⭐ O'rtacha: <b>{round(test.get('avg_score', 0), 1)}%</b>\n"
+        f"🆔 Kod: <code>{tid}</code>"
+    )
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="▶️ Inline test", callback_data=f"start_test_{tid}"),
+        InlineKeyboardButton(text="📊 Poll test",   callback_data=f"start_poll_{tid}"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="📤 Ulashish",   callback_data=f"share_test_{tid}"),
+        InlineKeyboardButton(text="📄 TXT yuklab", callback_data=f"mytest_txt_{tid}"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏆 Reyting", callback_data=f"lb_test_{tid}"),
+        InlineKeyboardButton(text="⬅️ Orqaga",  callback_data="mytests_p0"),
+    )
+
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("mytest_txt_"))
+async def my_test_to_txt(callback: CallbackQuery):
+    """Testni TXT formatda yuklab olish"""
+    await callback.answer("⏳ TXT tayyorlanmoqda...")
+    tid  = callback.data[11:]
+    test = get_test(tid)
+    if not test:
+        return await callback.message.answer("❌ Test topilmadi.")
+
+    txt = _test_to_txt(test)
+    doc = BufferedInputFile(txt.encode("utf-8"), filename=f"{test.get('title', tid)}.txt")
+    await callback.message.answer_document(
+        doc,
+        caption=(
+            f"📄 <b>{test.get('title')}</b> — TXT format\n"
+            f"📋 {len(test.get('questions', []))} ta savol\n"
+            f"🆔 Kod: <code>{tid}</code>"
+        )
+    )
+
+
+@router.callback_query(F.data.startswith("share_test_"))
+async def share_test(callback: CallbackQuery):
+    """Testni ulashish ssilkasi"""
+    await callback.answer()
+    tid  = callback.data[11:]
+    test = get_test(tid)
+    if not test:
+        return await callback.message.answer("❌ Test topilmadi.")
+
+    bot_uname = (await callback.bot.me()).username
+    link = f"https://t.me/{bot_uname}?start={tid}"
+
+    text = (
+        f"📤 <b>TEST ULASHISH</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 <b>{test.get('title')}</b>\n"
+        f"📁 Fan: {test.get('category')}\n"
+        f"📋 Savollar: {len(test.get('questions', []))} ta\n\n"
+        f"🔑 Kod: <code>{tid}</code>\n"
+        f"🔗 Ssilka:\n<code>{link}</code>\n\n"
+        f"<i>💡 Ssilkani do'stlaringizga yuboring — ular ham ishlaydi!</i>"
+    )
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"mytest_view_{tid}"))
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data == "go_tests")
+async def go_tests(callback: CallbackQuery):
+    await callback.answer()
+    from handlers.tests import send_categories_menu
+    await send_categories_menu(callback)
+
+
+# ── YORDAMCHI: Test → TXT ─────────────────────────────────
+
+def _test_to_txt(test: dict) -> str:
+    """Testni standart TXT formatga o'tkazish"""
+    lines = []
+    lines.append(f"# {test.get('title', 'Test')}")
+    lines.append(f"# Fan: {test.get('category', '')}")
+    lines.append(f"# Qiyinlik: {test.get('difficulty', '')}")
+    lines.append(f"# O'tish foizi: {test.get('passing_score', 60)}%")
+    lines.append(f"# Kod: {test.get('test_id', '')}")
+    lines.append("")
+
+    for i, q in enumerate(test.get("questions", []), 1):
+        t = q.get("type", "multiple_choice")
+        lines.append(f"TYPE: {t}")
+        lines.append(f"{i}. {q.get('question', q.get('text', ''))}")
+
+        opts = q.get("options", [])
+        corr = q.get("correct", "")
+
+        if t in ("multiple_choice", "multi_select"):
+            for opt in opts:
+                opt_str = str(opt)
+                if isinstance(corr, list):
+                    marker = "===" if opt_str in corr else ""
+                else:
+                    is_c = False
+                    import re
+                    m1 = re.match(r"^([A-Za-z])", opt_str.strip())
+                    m2 = re.match(r"^([A-Za-z])", str(corr).strip())
+                    if m1 and m2:
+                        is_c = m1.group(1).lower() == m2.group(1).lower()
+                    else:
+                        is_c = opt_str.strip() == str(corr).strip()
+                    marker = "===" if is_c else ""
+                lines.append(f"{marker}{opt_str}")
+        elif t == "true_false":
+            ans = "Ha" if "Ha" in str(corr) else "Yo'q"
+            lines.append(f"Javob: {ans}")
+        elif t in ("text_input", "fill_blank"):
+            lines.append(f"Javob: {corr}")
+            acc = q.get("accepted_answers", [])
+            if acc:
+                lines.append(f"Qabul_qilinadigan: {', '.join(acc)}")
+
+        expl = q.get("explanation", "")
+        if expl and expl not in ("Izoh kiritilmagan.", "Izoh yo'q", "Izoh kiritilmagan", ""):
+            lines.append(f"Izoh: {expl}")
+        lines.append("")
+
+    return "\n".join(lines)
