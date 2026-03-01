@@ -105,10 +105,12 @@ if menu == "📊 Dashboard":
         st.subheader("🗂 Fanlar bo'yicha testlar")
         if tests_data:
             df = pd.DataFrame(tests_data)
-            df["category"] = df.get("category", "Boshqa").fillna("Boshqa") if "category" in df else "Boshqa"
+            if "category" not in df.columns:
+                df["category"] = "Boshqa"
+            df["category"] = df["category"].fillna("Boshqa")
             fig = px.pie(df, names="category", hole=0.4,
                          color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("Testlar yo'q.")
 
@@ -116,12 +118,14 @@ if menu == "📊 Dashboard":
         st.subheader("🏆 Top 5 faol foydalanuvchi")
         if users_data:
             df_u = pd.DataFrame(users_data)
+            if "total_tests" not in df_u.columns:
+                df_u["total_tests"] = 0
             df_a = df_u[df_u["total_tests"] > 0].sort_values("total_tests", ascending=False).head(5)
             if not df_a.empty:
                 fig2 = px.bar(df_a, x="name", y="total_tests",
                               text="total_tests", color="name")
                 fig2.update_traces(textposition="outside")
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
             else:
                 st.info("Hali test ishlaganlar yo'q.")
 
@@ -133,38 +137,51 @@ if menu == "📊 Dashboard":
 elif menu == "👥 Foydalanuvchilar":
     st.header("👥 Foydalanuvchilar")
 
+    if st.button("🔄 Yangilash"):
+        load_data.clear()
+        st.rerun()
+
     if not users_data:
         st.warning("Bazada foydalanuvchilar yo'q.")
     else:
         df = pd.DataFrame(users_data)
-        cols = ["telegram_id", "name", "username", "role", "total_tests", "avg_score", "is_blocked"]
-        df_show = df[[c for c in cols if c in df.columns]].copy()
-        if "avg_score" in df_show:
-            df_show["avg_score"] = df_show["avg_score"].round(1).astype(str) + "%"
-        df_show.columns = [
-            "ID", "Ism", "Username", "Rol",
-            "Yechgan testlar", "O'rtacha", "Bloklangan"
-        ][:len(df_show.columns)]
+
+        # Kerakli ustunlar mavjudligini tekshirish
+        for col in ["telegram_id", "name", "username", "role", "total_tests", "avg_score", "is_blocked"]:
+            if col not in df.columns:
+                df[col] = None
+
+        df_show = df[["telegram_id", "name", "username", "role",
+                      "total_tests", "avg_score", "is_blocked"]].copy()
+        df_show["avg_score"] = df_show["avg_score"].fillna(0).round(1).astype(str) + "%"
+        df_show.columns = ["ID", "Ism", "Username", "Rol",
+                           "Testlar", "O'rtacha", "Bloklangan"]
 
         q = st.text_input("🔍 Qidirish (Ism yoki ID):")
         if q:
-            df_show = df_show[
-                df_show["Ism"].str.contains(q, case=False, na=False) |
-                df_show["ID"].astype(str).str.contains(q)
-            ]
-        st.dataframe(df_show, use_container_width=True)
+            mask = (
+                df_show["Ism"].astype(str).str.contains(q, case=False, na=False) |
+                df_show["ID"].astype(str).str.contains(q, na=False)
+            )
+            df_show = df_show[mask]
 
+        st.dataframe(df_show, width="stretch")
+        st.caption(f"Jami: {len(users_data)} ta foydalanuvchi")
+
+        st.markdown("---")
         st.markdown("### 🚫 Bloklash / Ochish")
-        options = df.apply(lambda r: f"{r['telegram_id']} — {r['name']}", axis=1).tolist()
-        sel     = st.selectbox("Foydalanuvchi:", options)
-        if st.button("Holatini o'zgartirish"):
+        options = [f"{r['telegram_id']} — {r.get('name','?')}" for r in users_data]
+        sel = st.selectbox("Foydalanuvchi tanlang:", options)
+        if st.button("⚡ Holatini o'zgartirish (blok/ochish)"):
             from firebase.db import block_user as _bu, get_user as _gu
             uid_sel = int(sel.split(" — ")[0])
             u_data  = _gu(uid_sel)
             if u_data:
-                _bu(uid_sel, not u_data.get("is_blocked", False))
+                new_state = not u_data.get("is_blocked", False)
+                _bu(uid_sel, new_state)
                 load_data.clear()
-                st.success("✅ Holat o'zgartirildi!")
+                action = "🔴 Bloklandi" if new_state else "🟢 Blokdan chiqarildi"
+                st.success(f"✅ {action}: {u_data.get('name')}")
                 st.rerun()
 
 
@@ -175,27 +192,33 @@ elif menu == "👥 Foydalanuvchilar":
 elif menu == "📋 Testlar bazasi":
     st.header("📋 Testlar bazasi")
 
+    if st.button("🔄 Yangilash"):
+        load_data.clear()
+        st.rerun()
+
     if not tests_data:
         st.warning("Bazada testlar yo'q.")
     else:
         df = pd.DataFrame(tests_data)
-        df["savollar"] = df["questions"].apply(lambda x: len(x) if isinstance(x, list) else 0)
-        if "created_at" in df.columns:
-            df["yaratilgan"] = pd.to_datetime(df["created_at"]).dt.strftime("%Y-%m-%d")
+        df["savollar"] = df["questions"].apply(
+            lambda x: len(x) if isinstance(x, list) else 0)
 
-        disp_cols = ["test_id", "title", "category", "difficulty", "savollar", "solve_count", "visibility"]
+        disp_cols = ["test_id", "title", "category", "difficulty",
+                     "savollar", "solve_count", "visibility", "avg_score"]
         avail = [c for c in disp_cols if c in df.columns]
-        st.dataframe(df[avail], use_container_width=True)
+        st.dataframe(df[avail], width="stretch")
+        st.caption(f"Jami: {len(tests_data)} ta test")
 
-        st.markdown("### 🗑 Testni o'chirish")
-        opts = df.apply(lambda r: f"{r['test_id']} — {r.get('title', '?')}", axis=1).tolist()
-        sel  = st.selectbox("Test:", opts)
+        st.markdown("---")
+        st.markdown("### 🗑 Testni o'chirish (Soft delete)")
+        opts = [f"{r.get('test_id','?')} — {r.get('title','?')}" for r in tests_data]
+        sel  = st.selectbox("Test tanlang:", opts)
         if st.button("🗑 O'chirish", type="primary"):
             from firebase.db import delete_test as _dt
             tid_sel = sel.split(" — ")[0]
             _dt(tid_sel)
             load_data.clear()
-            st.success("✅ Test o'chirildi!")
+            st.success(f"✅ Test o'chirildi: {sel}")
             st.rerun()
 
 
@@ -205,11 +228,19 @@ elif menu == "📋 Testlar bazasi":
 
 elif menu == "🏆 Reyting":
     st.header("🏆 Global Reyting (TOP 50)")
+
+    if st.button("🔄 Yangilash"):
+        load_data.clear()
+        st.rerun()
+
     if leaders_data:
         df = pd.DataFrame(leaders_data)
-        df["avg_score"] = df["avg_score"].round(1).astype(str) + "%"
+        for col in ["name", "username", "avg_score", "total_tests"]:
+            if col not in df.columns:
+                df[col] = None
+        df["avg_score"] = df["avg_score"].fillna(0).round(1).astype(str) + "%"
         disp = df[["name", "username", "avg_score", "total_tests"]].copy()
-        disp.index += 1
+        disp.index = range(1, len(disp) + 1)
         disp.columns = ["Ism", "Username", "O'rtacha", "Ishlagan testlar"]
         st.table(disp)
     else:
@@ -238,9 +269,16 @@ client_id = "..."
 auth_uri = "https://accounts.google.com/o/oauth2/auth"
 token_uri = "https://oauth2.googleapis.com/token"
 """, language="toml")
+
+    st.markdown("---")
     st.markdown("### 📋 Tizim holati")
     st.json({
         "Foydalanuvchilar": len(users_data),
         "Testlar": len(tests_data),
         "Bot ishlayapti": bot_thread.is_alive() if bot_thread else False,
     })
+
+    st.markdown("---")
+    st.markdown("### ✉️ Foydalanuvchiga javob yuborish")
+    st.info("Botda `/reply USER_ID Xabar matni` buyrug'ini ishlating.")
+    st.code("/reply 123456789 Salomat bo'ling, muammoingiz hal qilindi!")
