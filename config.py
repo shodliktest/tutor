@@ -27,7 +27,12 @@ ADMIN_IDS: list = [int(x.strip()) for x in _raw.split(",") if x.strip().isdigit(
 # ── Admin panel paroli ────────────────────────────────────
 ADMIN_PASSWORD: str = _s("ADMIN_PASSWORD", "admin123")
 
-# ── Firebase ──────────────────────────────────────────────
+# ── Streamlit WebApp URL ──────────────────────────────────
+# Bu URL Telegram WebApp (InlineKeyboard WebAppInfo) uchun ishlatiladi
+# Streamlit Cloud da: https://your-app.streamlit.app
+STREAMLIT_URL: str = _s("STREAMLIT_URL", "https://your-app.streamlit.app")
+
+# ── Firebase konfiguratsiya ───────────────────────────────
 FIREBASE_CFG = {
     "apiKey":            _s("firebase.api_key", ""),
     "authDomain":        _s("firebase.auth_domain", ""),
@@ -39,7 +44,7 @@ FIREBASE_CFG = {
 }
 
 # ── Bot sozlamalari ───────────────────────────────────────
-PASSING_SCORE   = 60      # O'tish foizi (%)
+PASSING_SCORE   = 60      # Standart o'tish foizi (%)
 MAX_FILE_MB     = 20      # Maksimal fayl hajmi
 ANSWER_DELAY    = 5       # Javobdan keyin ko'rsatish (sekund)
 
@@ -58,8 +63,3 @@ DIFFICULTY_LEVELS = {
     "hard":   "🔴 Qiyin",
     "expert": "⚡ Ekspert",
 }
-
-# ── Telegram Web App URL ──────────────────────────────────
-# GitHub Pages URL: https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/webapp_pages
-# Yoki boshqa hosting URL (HTTPS bo'lishi SHART)
-WEBAPP_BASE_URL: str = _s("WEBAPP_BASE_URL", "").rstrip("/")
