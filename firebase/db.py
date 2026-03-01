@@ -10,6 +10,14 @@ import logging
 log = logging.getLogger(__name__)
 UTC = timezone.utc
 
+def _safe_dt(val):
+    """Offset-naive va offset-aware datetime ni bir xil ko'rinishga keltirish"""
+    if val is None:
+        return datetime.min.replace(tzinfo=UTC)
+    if hasattr(val, "tzinfo"):
+        return val if val.tzinfo else val.replace(tzinfo=UTC)
+    return datetime.min.replace(tzinfo=UTC)
+
 
 # ═══════════════════════════════════════════════════════════
 # USERS (FOYDALANUVCHILAR)
@@ -98,7 +106,7 @@ def get_test(tid: str) -> dict | None:
 def get_all_tests(limit: int = 300) -> list:
     docs = [d.to_dict() for d in get_db().collection("tests").limit(limit).stream()]
     docs = [d for d in docs if d.get("is_active", True)]
-    docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    docs.sort(key=lambda x: _safe_dt(x.get("created_at")), reverse=True)
     return docs
 
 
@@ -106,7 +114,7 @@ def get_public_tests(limit: int = 100) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("tests").where("visibility", "==", "public").limit(150).stream()]
     docs = [d for d in docs if d.get("is_active", True)]
-    docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    docs.sort(key=lambda x: _safe_dt(x.get("created_at")), reverse=True)
     return docs[:limit]
 
 
@@ -114,7 +122,7 @@ def get_tests_by_category(category: str, limit: int = 50) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("tests").where("category", "==", category).limit(100).stream()]
     docs = [d for d in docs if d.get("is_active", True) and d.get("visibility") == "public"]
-    docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    docs.sort(key=lambda x: _safe_dt(x.get("created_at")), reverse=True)
     return docs[:limit]
 
 
@@ -122,7 +130,7 @@ def get_my_tests(creator_id: int) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("tests").where("creator_id", "==", creator_id).stream()]
     docs = [d for d in docs if d.get("is_active", True)]
-    docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    docs.sort(key=lambda x: _safe_dt(x.get("created_at")), reverse=True)
     return docs
 
 
@@ -177,7 +185,7 @@ def save_result(user_id: int, test_id: str, res: dict) -> str:
 def get_user_results(user_id: int, limit: int = 20) -> list:
     docs = [d.to_dict() for d in
             get_db().collection("results").where("user_id", "==", user_id).limit(100).stream()]
-    docs.sort(key=lambda x: x.get("completed_at", datetime.min), reverse=True)
+    docs.sort(key=lambda x: _safe_dt(x.get("completed_at")), reverse=True)
     return docs[:limit]
 
 
