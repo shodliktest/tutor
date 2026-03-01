@@ -101,7 +101,7 @@ async def direct_code_handler(message: Message):
         f"📋 Savollar: <b>{len(qs)} ta</b>\n"
         f"📊 Qiyinlik: <b>{diff}</b>\n"
         f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>",
-        reply_markup=test_info_keyboard(tid)
+        reply_markup=test_info_keyboard(tid, test)  # test_data berildi
     )
 
 
@@ -148,8 +148,9 @@ async def view_test(callback: CallbackQuery):
     diff = diff_map.get(test.get("difficulty", ""), "")
     vis_map = {"public": "🌍 Ommaviy", "link": "🔗 Ssilka", "private": "🔒 Shaxsiy"}
     vis = vis_map.get(test.get("visibility", ""), "")
-    pt  = test.get("poll_time", 30)
-    pt_txt = f"{pt} son/savol" if pt > 0 else "Vaqtsiz"
+
+    from config import WEBAPP_BASE_URL
+    wa_line = "🎮 <b>Web App</b> — chiroyli interfeys, Firebase siz\n" if WEBAPP_BASE_URL else ""
 
     text = (
         f"<b>📋 TEST MA'LUMOTLARI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -160,17 +161,17 @@ async def view_test(callback: CallbackQuery):
         f"⏱ Vaqt limiti: <b>{test.get('time_limit', 0) or 'Cheksiz'} daqiqa</b>\n"
         f"🎯 O'tish foizi: <b>{test.get('passing_score', 60)}%</b>\n"
         f"🔄 Ishlangan: <b>{test.get('solve_count', 0)} marta</b>\n"
-        f"🔒 Ko'rinish: {vis}\n"
-        f"⏱ Poll vaqti: {pt_txt}\n\n"
+        f"🔒 Ko'rinish: {vis}\n\n"
         f"<i>Qaysi rejimda ishlashni tanlang:</i>\n"
-        f"▶️ <b>Inline</b> — har savoldan keyin to'g'ri/noto'g'ri ko'rsatadi\n"
-        f"📊 <b>Poll</b> — native quiz poll (@QuizBot uslubida)"
+        f"{wa_line}"
+        f"▶️ <b>Inline</b> — savol-javob xabar orqali\n"
+        f"📊 <b>Poll</b> — native Telegram quiz poll"
     )
     from keyboards.keyboards import test_info_keyboard
     try:
-        await callback.message.edit_text(text, reply_markup=test_info_keyboard(tid))
+        await callback.message.edit_text(text, reply_markup=test_info_keyboard(tid, test))
     except TelegramBadRequest:
-        await callback.message.answer(text, reply_markup=test_info_keyboard(tid))
+        await callback.message.answer(text, reply_markup=test_info_keyboard(tid, test))
 
 
 # ═══════════════════════════════════════════════════════════

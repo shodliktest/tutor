@@ -1,10 +1,19 @@
 """
 ➕ TEST YARATISH HANDLER — Aiogram 3
-• Soddalashtirilgan format (minimal ma'lumot talab qilinadi)
-• Test yuklab bo'lingach barcha xabarlar o'chiriladi
-• Faqat quiz poll orqali uzatish mumkin (xavfsizlik)
-• Kalit javoblar boshqa buyruq bosilganda avtomatik o'chiriladi
-• TXT da creator info + vaqt avtomatik yoziladi
+Oqim:
+  1. Yaratish tugmasi → 3 usul taklif qilinadi
+     a) Web App muharriri   → create.html ochiladi (bo'sh)
+     b) Fayl yuklash (TXT/PDF/DOCX)
+     c) QuizBot poll forward
+
+  2. Fayl/poll tayyor bo'lgach →
+     "🎨 Web App da ko'rish va tahrirlash" tugmasi paydo bo'ladi
+     Foydalanuvchi create.html da savollarni ko'rib tahrirlaydi
+     Tahrirlangach sendData() → bot saqlaydi
+     YOKI
+     "✅ Saqlash" → fan, nom, ko'rinish → saqlash
+
+  3. Saqlash tugallangach → kalit javoblar + muvaffaqiyat xabari
 """
 import os
 import logging
@@ -18,9 +27,10 @@ from aiogram.types import InlineKeyboardButton
 
 from utils.parser import parse_file
 from utils.states import CreateTest
-from firebase.db import create_test, get_test, get_user
+from firebase.db import create_test, get_user
 from keyboards.keyboards import (
-    create_subject_keyboard, main_reply_keyboard
+    create_subject_keyboard, main_reply_keyboard,
+    webapp_create_keyboard, after_parse_keyboard
 )
 
 log = logging.getLogger(__name__)
@@ -28,7 +38,7 @@ router = Router()
 
 SAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "samples")
 
-# ── Yig'ilgan xabarlar IDlari (o'chirish uchun) ──────────
+# ── Yig'ilgan xabarlar IDlari ──────────────────────────────
 _upload_msgs: dict = {}   # {user_id: [msg_id, ...]}
 _key_msgs: dict    = {}   # {user_id: msg_id}
 
@@ -48,7 +58,7 @@ async def _clear_upload_msgs(bot, uid: int, chat_id: int):
 
 
 async def clear_key_msg(bot, uid: int, chat_id: int):
-    """Kalit javoblar xabarini o'chirish (boshqa buyruq bosilganda chaqiriladi)"""
+    """Kalit javoblar xabarini o'chirish"""
     mid = _key_msgs.pop(uid, None)
     if mid:
         try:
@@ -57,9 +67,9 @@ async def clear_key_msg(bot, uid: int, chat_id: int):
             pass
 
 
-# ═══════════════════════════════════════════════════════════
-# NAMUNA MATNLARI — bir klik nusxa olish uchun
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# NAMUNA MATNLARI
+# ══════════════════════════════════════════════════════════
 
 SAMPLE_TYPES = {
     "mcq": {
@@ -91,7 +101,7 @@ SAMPLE_TYPES = {
             "Javob: 1441\n"
             "Izoh: Buyuk shoir va mutafakkir."
         ),
-        "hint": "Javob: so'zidan keyin to'g'ri javob. Izoh ixtiyoriy."
+        "hint": "Javob: so'zidan keyin to'g'ri javob."
     },
     "match": {
         "label": "🔗 Moslashtirish",
@@ -132,56 +142,36 @@ SAMPLE_TYPES = {
 POLL_TIME_OPTIONS = [15, 30, 45, 60, 90, 120]
 
 
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
 # 1. BOSHLASH
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
 
 @router.message(F.text == "➕ Test Yaratish")
 async def create_start(message: Message, state: FSMContext):
     await state.clear()
     uid = message.from_user.id
-    # Avvalgi kalit xabarni o'chirish
     await clear_key_msg(message.bot, uid, message.chat.id)
-
-    from config import WEBAPP_BASE_URL
-    builder = InlineKeyboardBuilder()
-
-    # 🆕 Web App orqali yaratish (eng qulay usul)
-    if WEBAPP_BASE_URL:
-        create_url = f"{WEBAPP_BASE_URL}/create.html"
-        from aiogram.types import WebAppInfo
-        builder.row(InlineKeyboardButton(
-            text="✨ Web App orqali yaratish (yangi!)",
-            web_app=WebAppInfo(url=create_url)
-        ))
-        builder.row(InlineKeyboardButton(text="─── Yoki eski usullar ───", callback_data="noop"))
-
-    # Eski usullar
-    builder.row(InlineKeyboardButton(text="📁 Fayl (TXT/PDF/DOCX)", callback_data="method_file"))
-    builder.row(InlineKeyboardButton(text="📊 QuizBotdan forward",  callback_data="method_poll"))
-    builder.row(InlineKeyboardButton(text="❌ Bekor qilish",        callback_data="cancel_creation"))
-
-    webapp_desc = ""
-    if WEBAPP_BASE_URL:
-        webapp_desc = "✨ <b>Web App</b> — vizual muharrir, savollarni ko'rib chiqish va tahrirlash\n\n"
 
     msg = await message.answer(
         "<b>➕ TEST YARATISH</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{webapp_desc}"
-        "📁 <b>Fayl yuklash</b> — TXT, PDF yoki DOCX\n\n"
-        "📊 <b>QuizBotdan forward</b> — @QuizBot savollarini uzating\n"
-        "   <i>⚠️ Faqat Quiz (viktorina) turi qabul qilinadi!</i>",
-        reply_markup=builder.as_markup()
+        "✨ <b>Web App</b> — vizual muharrir:\n"
+        "   Ko'p tanlovli • Ha/Yo'q • Bo'sh joy\n"
+        "   Moslashtirish • Tartiblashtirish\n\n"
+        "📁 <b>Fayl</b> — TXT, PDF yoki DOCX yuklab, keyin\n"
+        "   Web App da ko'rib tahrirlash mumkin\n\n"
+        "📊 <b>QuizBot</b> — @QuizBot pollini forward qiling,\n"
+        "   keyin Web App da tahrirlash mumkin",
+        reply_markup=webapp_create_keyboard()
     )
     _track_msg(uid, msg.message_id)
     _track_msg(uid, message.message_id)
     await state.set_state(CreateTest.choose_method)
 
 
-# ═══════════════════════════════════════════════════════════
-# 2. FAYL YUKLASH — Soddalashtirilgan namunalar
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# 2. FAYL YUKLASH
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data == "method_file", CreateTest.choose_method)
 async def method_file(callback: CallbackQuery, state: FSMContext):
@@ -199,7 +189,7 @@ async def method_file(callback: CallbackQuery, state: FSMContext):
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Turni bosing → namuna formatni ko'rasiz\n"
         "Shu formatda fayl tayyorlab yuboring:\n\n"
-        "<i>💡 Namuna matnini bir klik bilan nusxalab olasiz!</i>",
+        "<i>💡 Fayl yuklangach Web App da tahrirlash imkoni bo'ladi!</i>",
         reply_markup=builder.as_markup()
     )
     await state.set_state(CreateTest.upload_file)
@@ -290,21 +280,28 @@ async def upload_file(message: Message, state: FSMContext):
             return
 
         await state.update_data(questions=questions)
+
+        # ── Kalit: fayldan chiqqandan keyin tahrirlash imkoni ──
         await status.edit_text(
             f"<b>✅ {len(questions)} TA SAVOL TOPILDI!</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Test qaysi fanga tegishli?",
-            reply_markup=create_subject_keyboard()
+            f"🎨 <b>Web App da ko'ring va tahrirlang</b> — savollarni\n"
+            f"   ko'rib chiqing, xato bo'lsa tuzating\n\n"
+            f"✅ <b>Saqlash</b> — to'g'ridan fan va nom kiriting\n\n"
+            f"<i>💡 Web App da tahrirlangach bot avtomatik saqlaydi</i>",
+            reply_markup=after_parse_keyboard(questions)
         )
+        # "✅ Saqlash" bosilsa fan tanlashga o'tiladi
         await state.set_state(CreateTest.set_subject)
+
     except Exception as e:
         log.error(f"Fayl xatosi: {e}")
         await status.edit_text("❌ Faylni o'qishda xatolik. Qaytadan urinib ko'ring.")
 
 
-# ═══════════════════════════════════════════════════════════
-# 3. QUIZBOT POLL FORWARD — Faqat Quiz turi
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# 3. QUIZBOT POLL FORWARD
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data == "method_poll", CreateTest.choose_method)
 async def method_poll(callback: CallbackQuery, state: FSMContext):
@@ -323,7 +320,7 @@ async def method_poll(callback: CallbackQuery, state: FSMContext):
         "3️⃣ Har birini bu yerga <b>Forward</b> qiling\n"
         "4️⃣ Tugagach <b>✅ Tayyor</b> bosing\n\n"
         "⚠️ <b>Faqat Quiz (Viktorina) turi qabul qilinadi!</b>\n"
-        "<i>Oddiy so'rovnoma (poll) qabul qilinmaydi.</i>",
+        "<i>Saqlashdan oldin Web App da tahrirlash imkoni bo'ladi!</i>",
         reply_markup=builder.as_markup()
     )
     await state.set_state(CreateTest.waiting_polls)
@@ -331,16 +328,15 @@ async def method_poll(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.poll, CreateTest.waiting_polls)
 async def catch_poll(message: Message, state: FSMContext):
-    uid = message.from_user.id
+    uid  = message.from_user.id
     _track_msg(uid, message.message_id)
     poll = message.poll
 
-    # XAVFSIZLIK: Faqat quiz turi
     if poll.type != "quiz":
         m = await message.answer(
             "❌ <b>Faqat Quiz (Viktorina) turini yuboring!</b>\n\n"
             "📌 @QuizBot da savollar <b>Quiz</b> turida bo'lishi kerak.\n"
-            "<i>Oddiy so'rovnoma (poll) qabul qilinmaydi — xavfsizlik uchun.</i>"
+            "<i>Oddiy so'rovnoma (poll) qabul qilinmaydi.</i>"
         )
         _track_msg(uid, m.message_id)
         return
@@ -349,14 +345,15 @@ async def catch_poll(message: Message, state: FSMContext):
     questions = data.get("questions", [])
     letters   = ["A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)", "I)", "J)"]
     options   = [f"{letters[i]} {opt.text}" for i, opt in enumerate(poll.options)]
-    correct   = options[poll.correct_option_id]
+    correct   = poll.correct_option_id  # indeks saqlaymiz
 
     questions.append({
         "type":        "multiple_choice",
         "question":    poll.question,
+        "text":        poll.question,
         "options":     options,
         "correct":     correct,
-        "explanation": poll.explanation or "Izoh kiritilmagan.",
+        "explanation": poll.explanation or "",
         "points":      1,
         "source":      "poll",
     })
@@ -399,8 +396,7 @@ async def download_polls_txt(callback: CallbackQuery, state: FSMContext):
         doc,
         caption=(
             f"📄 QuizBotdan forward qilingan savollar\n"
-            f"📋 {len(questions)} ta savol\n\n"
-            f"<i>Bu faylni keyinchalik '📁 Fayl yuklash' orqali ham yuklash mumkin!</i>"
+            f"📋 {len(questions)} ta savol"
         )
     )
 
@@ -408,45 +404,44 @@ async def download_polls_txt(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "finish_polls", CreateTest.waiting_polls)
 async def finish_polls(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    if not data.get("questions"):
+    questions = data.get("questions", [])
+    if not questions:
         return await callback.answer("❌ Kamida 1 ta poll yuboring!", show_alert=True)
 
-    builder = InlineKeyboardBuilder()
-    for sec in POLL_TIME_OPTIONS:
-        builder.add(InlineKeyboardButton(text=f"⏱ {sec}s", callback_data=f"ptime_{sec}"))
-    builder.adjust(3)
-    builder.row(InlineKeyboardButton(text="♾ Vaqtsiz", callback_data="ptime_0"))
-    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_creation"))
+    await state.update_data(questions=questions)
 
+    # ── Poll tugadi — tahrirlash imkoni ──
     await callback.message.edit_text(
-        f"<b>⏱ POLL SAVOL VAQTI</b>\n"
+        f"<b>✅ {len(questions)} TA SAVOL TAYYOR!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"✅ {len(data['questions'])} ta savol tayyor!\n\n"
-        f"<b>Poll uslubida</b> har savol uchun necha soniya?",
-        reply_markup=builder.as_markup()
-    )
-    await state.set_state(CreateTest.set_poll_time)
-
-
-@router.callback_query(F.data.startswith("ptime_"), CreateTest.set_poll_time)
-async def set_poll_time(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    pt = int(callback.data[6:])
-    await state.update_data(poll_time=pt)
-
-    await callback.message.edit_text(
-        f"<b>📁 FANNI TANLANG</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"⏱ Poll vaqti: <b>{'Cheksiz' if pt == 0 else f'{pt} soniya'}</b>\n\n"
-        f"Test qaysi fanga tegishli?",
-        reply_markup=create_subject_keyboard()
+        f"🎨 <b>Web App da ko'ring va tahrirlang</b> — savollarni\n"
+        f"   ko'rib chiqing, xato bo'lsa tuzating\n\n"
+        f"✅ <b>Saqlash</b> — to'g'ridan fan va nom kiriting\n\n"
+        f"<i>💡 Web App da tahrirlangach bot avtomatik saqlaydi</i>",
+        reply_markup=after_parse_keyboard(questions)
     )
     await state.set_state(CreateTest.set_subject)
 
 
-# ═══════════════════════════════════════════════════════════
-# 4. FAN, MAVZU — Soddalashtirilgan (minimal savollar)
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# "✅ Saqlash" — fan, nom, ko'rinish tanlash
+# ══════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "proceed_to_subject")
+async def proceed_to_subject(callback: CallbackQuery, state: FSMContext):
+    """after_parse_keyboard dagi 'Saqlash' tugmasi"""
+    await callback.answer()
+    await callback.message.edit_text(
+        "<b>📁 FANNI TANLANG</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Test qaysi fanga tegishli?",
+        reply_markup=create_subject_keyboard()
+    )
+
+
+# ══════════════════════════════════════════════════════════
+# FAN, MAVZU, KO'RINISH
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("set_subj_"), CreateTest.set_subject)
 async def set_subject_cb(callback: CallbackQuery, state: FSMContext):
@@ -487,10 +482,10 @@ async def set_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text.strip())
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🌍 Ommaviy",       callback_data="vis_public"))
-    builder.row(InlineKeyboardButton(text="🔗 Ssilka orqali", callback_data="vis_link"))
-    builder.row(InlineKeyboardButton(text="🔒 Shaxsiy",        callback_data="vis_private"))
-    builder.row(InlineKeyboardButton(text="❌ Bekor",           callback_data="cancel_creation"))
+    builder.row(InlineKeyboardButton(text="🌍 Ommaviy",        callback_data="vis_public"))
+    builder.row(InlineKeyboardButton(text="🔗 Ssilka orqali",  callback_data="vis_link"))
+    builder.row(InlineKeyboardButton(text="🔒 Shaxsiy",         callback_data="vis_private"))
+    builder.row(InlineKeyboardButton(text="❌ Bekor",            callback_data="cancel_creation"))
 
     m = await message.answer(
         f"<b>🔒 TEST MAXFIYLIGI</b>\n"
@@ -503,12 +498,12 @@ async def set_title(message: Message, state: FSMContext):
     await state.set_state(CreateTest.set_visibility)
 
 
-# ═══════════════════════════════════════════════════════════
-# 5. SAQLASH — Upload xabarlar o'chiriladi
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# SAQLASH — Firebase ga yozish + kalit
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("vis_"), CreateTest.set_visibility)
-async def save_test(callback: CallbackQuery, state: FSMContext):
+async def save_test_handler(callback: CallbackQuery, state: FSMContext):
     await callback.answer("⏳ Saqlanmoqda...")
     data       = await state.get_data()
     visibility = callback.data[4:]
@@ -531,14 +526,11 @@ async def save_test(callback: CallbackQuery, state: FSMContext):
     link     = f"https://t.me/{bot_user.username}?start={tid}"
     await state.clear()
 
-    # 1. Barcha upload xabarlarni o'chirish
+    # Barcha upload xabarlarni o'chirish
     _track_msg(uid, callback.message.message_id)
     await _clear_upload_msgs(callback.bot, uid, chat_id)
 
-    poll_time_txt = (f"{test_data['poll_time']} soniya" if test_data.get("poll_time")
-                     else "Cheksiz")
-
-    # 2. Muvaffaqiyat xabari
+    # Muvaffaqiyat xabari
     await callback.bot.send_message(
         chat_id,
         f"<b>🎉 TEST MUVAFFAQIYATLI YARATILDI!</b>\n"
@@ -547,17 +539,16 @@ async def save_test(callback: CallbackQuery, state: FSMContext):
         f"🔗 Ssilka: <code>{link}</code>\n\n"
         f"📁 Fan: {test_data['category']}\n"
         f"📝 Mavzu: {test_data['title']}\n"
-        f"📋 Savollar: {len(test_data['questions'])} ta\n"
-        f"⏱ Poll vaqti: {poll_time_txt} / savol\n\n"
-        f"<i>✅ ▶️ Inline va 📊 Poll ikki rejimda ishlaydi!</i>",
+        f"📋 Savollar: {len(test_data['questions'])} ta\n\n"
+        f"<i>✅ Web App, Inline va Poll — uch rejimda ishlaydi!</i>",
         reply_markup=main_reply_keyboard(uid)
     )
 
-    # 3. Kalit javoblar
+    # Kalit javoblar
     qs   = test_data["questions"]
     keys = f"🔑 <b>{test_data['title'].upper()} — JAVOBLAR KALITI</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
     for i, q in enumerate(qs):
-        corr = q.get('correct', '?')
+        corr = q.get("correct", "?")
         if isinstance(corr, list):
             corr = ", ".join(str(c) for c in corr)
         keys += f"<b>{i+1}.</b> {corr}\n"
@@ -566,10 +557,9 @@ async def save_test(callback: CallbackQuery, state: FSMContext):
     key_builder.row(InlineKeyboardButton(text="✉️ Kalit yashirish", callback_data="hide_key_msg"))
 
     if len(keys) > 4000:
-        user = callback.from_user
         from handlers.profile import _test_to_txt as _to_txt
-        txt  = _to_txt(test_data, user=user, bot_info=bot_user)
-        m    = await callback.bot.send_document(
+        txt = _to_txt(test_data, user=callback.from_user, bot_info=bot_user)
+        m = await callback.bot.send_document(
             chat_id,
             BufferedInputFile(txt.encode("utf-8"), filename=f"Kalit_{tid}.txt"),
             caption="🔑 Javoblar kaliti"
@@ -580,6 +570,10 @@ async def save_test(callback: CallbackQuery, state: FSMContext):
         )
     _key_msgs[uid] = m.message_id
 
+
+# ══════════════════════════════════════════════════════════
+# KALIT YASHIRISH
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data == "hide_key_msg")
 async def hide_key_msg(callback: CallbackQuery):
@@ -592,13 +586,12 @@ async def hide_key_msg(callback: CallbackQuery):
         pass
 
 
-# ═══════════════════════════════════════════════════════════
-# 6. BEKOR QILISH
-# ═══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# BEKOR QILISH
+# ══════════════════════════════════════════════════════════
 
 @router.callback_query(F.data == "noop")
 async def noop_cb(callback: CallbackQuery):
-    """Bo'sh tugma — divider sifatida ishlatiladi"""
     await callback.answer()
 
 
