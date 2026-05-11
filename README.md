@@ -3,7 +3,7 @@
 Telegram quiz bot — 2 rejimda test yechish, Firebase baza, Streamlit admin panel.
 
 ## ✨ Asosiy imkoniyatlar
-
+f
 | Imkoniyat | Tavsif |
 |-----------|--------|
 | ▶️ **Inline test** | Har savoldan keyin 5 soniya to'g'ri/noto'g'ri ko'rsatadi |
